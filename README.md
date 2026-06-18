@@ -15,6 +15,12 @@
 - 👛 Wallet and Network Mining ELZR
 - 📱 App stability on real Android phones
 
+## ⚠️ Current Test Build Notes
+
+- 🎯 AR coin hunting is temporarily disabled in this build.
+- 📣 Buying Ads campaigns is temporarily disabled in this build.
+- 👛 Wallet and Network Mining ELZR are the main focus for this test phase.
+
 ## 💬 Feedback
 
 We are waiting for feedback from testers. Please send screenshots or short videos showing how the app behaves, plus any errors, crashes, or unexpected behavior.
