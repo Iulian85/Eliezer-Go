@@ -1,36 +1,48 @@
 # Eliezer Go
 
-Eliezer Go is an Android test app for early community contributors.
+🚀 **Eliezer Go** is an Android test build for early community contributors.
 
-## Download
+## 📲 Download
 
-Get the latest APK from the **Releases** page:
+👉 [Download the latest APK from Releases](https://github.com/Iulian85/Eliezer-Go/releases/latest)
 
-https://github.com/Iulian85/Eliezer-Go/releases/latest
+## 🧪 What to Test
 
-## Test Build
+- 🏠 Home dashboard
+- 🎯 Hunt screen
+- 📣 Ads flow
+- 👥 Frens / referral flow
+- 👛 Wallet and Network Mining ELZR
+- 📱 App stability on real Android phones
 
-This public test build focuses on:
+## 💬 Feedback
 
-- Network Mining ELZR with explicit user consent
-- Wallet connection flow
-- Community and feedback features
-- Early ecosystem testing on real Android devices
+We are waiting for feedback from testers. Please send screenshots or short videos showing how the app behaves, plus any errors, crashes, or unexpected behavior.
 
-## Install
+- 💬 Telegram community: [t.me/eliezergocommunity](https://t.me/eliezergocommunity)
+- 📣 Official Telegram channel: [t.me/eliezergo](https://t.me/eliezergo)
+
+When reporting, please include your phone model, Android version, country/network type, and what you tested.
+
+## 📸 Screenshots
+
+| Home | Hunt |
+| --- | --- |
+| ![Home](screenshots/home.png) | ![Hunt](screenshots/hunt.png) |
+
+| Ads | Frens |
+| --- | --- |
+| ![Ads](screenshots/ads.png) | ![Frens](screenshots/frens.png) |
+
+| Wallet |
+| --- |
+| ![Wallet](screenshots/wallet.png) |
+
+## ✅ Install
 
 1. Download the latest APK from Releases.
 2. Open the APK on your Android phone.
 3. Allow installation from your browser or file manager if Android asks.
 4. Open Eliezer Go and follow the in-app permission screens.
-
-## Notes for Testers
-
-- Use a real Android phone, not an emulator.
-- Keep the app open while testing Network Mining.
-- For best results, test on stable Wi-Fi.
-- Report your phone model, Android version, network type, and what happened.
-
-## Safety
 
 Only download APK files from this repository's official Releases page.
