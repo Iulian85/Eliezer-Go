@@ -10,8 +10,12 @@
 
 - 🏠 Home dashboard
 - 🎯 Hunt screen
+- 📷 Camera opening in AR mode
 - 📣 Ads flow
 - 👥 Frens / referral flow
+- 🔐 Biometric registration / login
+- 🛡️ Device trust scan result for emulator, root, and GPS spoofing checks
+- 💎 TON wallet connection
 - 👛 Wallet and Network Mining ELZR
 - 📱 App stability on real Android phones
 
@@ -19,7 +23,7 @@
 
 - 🎯 AR coin hunting is temporarily disabled in this build.
 - 📣 Buying Ads campaigns is temporarily disabled in this build.
-- 👛 Wallet and Network Mining ELZR are the main focus for this test phase.
+- 👛 This test phase focuses on Wallet, Network Mining ELZR, Frens, TON wallet connection, AR camera opening, biometric login, and device trust scan behavior.
 
 ## 💬 Feedback
 
