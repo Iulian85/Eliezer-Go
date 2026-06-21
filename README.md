@@ -25,6 +25,11 @@
 - 📣 Buying Ads campaigns is temporarily disabled in this build.
 - 👛 This test phase focuses on Wallet, Network Mining ELZR, Frens, TON wallet connection, AR camera opening, biometric login, and device trust scan behavior.
 
+## 📝 Project Notes and Articles
+
+- [Project docs and app overview](docs/index.md)
+- [Building Eliezer Go, an Android App for Location-Based Discovery](docs/articles/building-eliezer-go.md)
+
 ## 💬 Feedback
 
 We are waiting for feedback from testers. Please send screenshots or short videos showing how the app behaves, plus any errors, crashes, or unexpected behavior.
