@@ -47,6 +47,7 @@ export async function reverseGeocodeUserLocation(
 }
 
 export interface GeoCoin {
+  calibration?: boolean;
   motion?: CoinMotion;
   id: string;
   name: string;

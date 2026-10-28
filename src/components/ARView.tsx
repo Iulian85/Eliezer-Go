@@ -7,6 +7,7 @@ import { Coin3D } from './Coin3D';
 import { GeoCamera } from './GeoCamera';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { toWorldPosition } from '../utils/arSpatial';
+import { CalibrationState, changeCalibration, calibrationMotion } from '../utils/coinCalibration';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -202,6 +203,8 @@ export const ARView: React.FC<ARViewProps> = ({
 
   // Active coins loaded strictly from the API (real GPS coordinates)
   const [geoCoins, setGeoCoins] = useState<GeoCoin[]>([]);
+  const [calibration, setCalibration] = useState<CalibrationState>({ height: 1.4, speed: .5, running: false, distance: 0, updatedAt: gameTime(), heading: 0 });
+  const adjustCalibration = (patch: Partial<CalibrationState>) => setCalibration(current => changeCalibration(current, patch, gameTime()));
   const [activeCoinId, setActiveCoinId] = useState('');
   const [sensorYaw, setSensorYaw] = useState(0);
   const yaw = sensorYaw;
@@ -242,6 +245,7 @@ export const ARView: React.FC<ARViewProps> = ({
           distance: dist,
           bearing: bearing,
           motion: drop.motion,
+          calibration: drop.calibration === true,
           expiresAt: drop.motion?.endsAt,
           maxDurability: drop.motion ? (drop.motion.endsAt - drop.motion.startsAt) / 1000 : undefined,
           despawned: Boolean(drop.motion && gameTime() >= drop.motion.endsAt),
@@ -275,10 +279,18 @@ export const ARView: React.FC<ARViewProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  const displayedCoins = geoCoins.map(coin => {
+    if (!coin.calibration) return coin;
+    const motion = calibrationMotion(coin, calibration, gameTime());
+    const point = movingCoinPosition(motion, gameTime());
+    return { ...coin, ...point, motion,
+      distance: userCoords ? getDistanceMeters(userCoords.latitude, userCoords.longitude, point.latitude, point.longitude) : 999999,
+      bearing: userCoords ? getBearingDegrees(userCoords.latitude, userCoords.longitude, point.latitude, point.longitude) : 0 };
+  });
   // Get active targeted coin object (must be uncollected and not despawned)
   const activeCoin =
-    geoCoins.find((c) => c.id === activeCoinId && !c.collected && !c.despawned) ||
-    geoCoins.find((c) => !c.collected && !c.despawned);
+    displayedCoins.find((c) => c.id === activeCoinId && !c.collected && !c.despawned) ||
+    displayedCoins.find((c) => !c.collected && !c.despawned);
 
   // Active coin durability calculation
   const activeDurability = activeCoin
@@ -300,7 +312,7 @@ export const ARView: React.FC<ARViewProps> = ({
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
   // Can collect ONLY when within 5 meters of the Service drop coordinates
-  const canCollect = Boolean(isCoinInARRange && realDistance <= 5.0 && (userCoords?.accuracy ?? Infinity) <= 10);
+  const canCollect = Boolean(!activeCoin?.calibration && isCoinInARRange && realDistance <= 5.0 && (userCoords?.accuracy ?? Infinity) <= 10);
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -694,7 +706,7 @@ export const ARView: React.FC<ARViewProps> = ({
         <Canvas camera={{ position: [0, 1.6, 0], fov: 65, near: .05, far: 500 }} gl={{ alpha: true, antialias: true }}>
           {originRef.current && visualCoords && orientation && <GeoCamera origin={originRef.current} user={visualCoords} orientation={orientation} />}
           <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
-          {isCoinInARRange && activeCoin && originRef.current && <RoamingCoin coin={activeCoin} origin={originRef.current} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
+          {isCoinInARRange && activeCoin && originRef.current && <RoamingCoin coin={activeCoin} height={activeCoin.calibration ? calibration.height : 1.4} origin={originRef.current} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
         </Canvas>
       </div>}
 
@@ -831,6 +843,20 @@ export const ARView: React.FC<ARViewProps> = ({
 
         {/* BOTTOM DOCKED HUD (Docked at bottom so middle 3D coin area is 100% clear & unobstructed) */}
         <div className="px-3.5 pt-3 pb-[max(1rem,calc(var(--sab)+0.5rem))] flex flex-col gap-2 pointer-events-auto bg-gradient-to-t from-black/95 via-black/85 to-transparent">
+          {activeCoin?.calibration && <details className="rounded-xl bg-slate-950/95 border border-cyan-600 p-3 text-white text-xs" open>
+            <summary className="font-bold cursor-pointer">Reglaje locale · fără colectare</summary>
+            <label className="block mt-2">Înălțimea centrului: {calibration.height.toFixed(2)} m
+              <input aria-label="Înălțimea monedei" className="w-full" type="range" min="0.2" max="3" step="0.05" value={calibration.height} onChange={e => adjustCalibration({ height: Number(e.target.value) })} />
+            </label>
+            <label className="block">Viteza: {calibration.speed.toFixed(1)} m/s
+              <input aria-label="Viteza monedei" className="w-full" type="range" min="0" max="3" step="0.1" value={calibration.speed} onChange={e => adjustCalibration({ speed: Number(e.target.value) })} />
+            </label>
+            <div className="flex gap-2 mt-2">
+              <button className="rounded-lg bg-cyan-800 px-3 py-2" onClick={() => adjustCalibration({ running: !calibration.running, ...(calibration.distance === 0 && !calibration.running ? { heading: yaw } : {}) })}>{calibration.running ? 'Pauză' : 'Pornește testul'}</button>
+              <button className="rounded-lg bg-slate-700 px-3 py-2" onClick={() => adjustCalibration({ running: false, distance: 0 })}>Înapoi acasă</button>
+            </div>
+            <p className="mt-2 text-slate-300">Nivel virtual; podeaua nu este detectată. Reglajele afectează doar acest telefon.</p>
+          </details>}
           {/* Row 1: Compass Telemetry & Radar Map Button */}
           <div className="flex items-center justify-between w-full gap-2">
             {/* Compass & Proximity Pill */}
@@ -933,7 +959,7 @@ export const ARView: React.FC<ARViewProps> = ({
         isOpen={isRadarOpen}
         onClose={() => setIsRadarOpen(false)}
         userCoords={userCoords}
-        coins={geoCoins}
+        coins={displayedCoins}
         activeCoinId={activeCoinId}
         onSelectCoin={(coinId) => {
           setActiveCoinId(coinId);
@@ -964,15 +990,15 @@ export const ARView: React.FC<ARViewProps> = ({
   );
 };
 
-function RoamingCoin({ coin, origin, canCollect, isCollecting, onClick }: {
-  coin: GeoCoin; origin: GeoCoordinate; canCollect: boolean; isCollecting: boolean; onClick: () => void;
+function RoamingCoin({ coin, origin, height, canCollect, isCollecting, onClick }: {
+  coin: GeoCoin; origin: GeoCoordinate; height: number; canCollect: boolean; isCollecting: boolean; onClick: () => void;
 }) {
   const group = useRef<Group>(null);
   useFrame(() => {
     if (!group.current) return;
     const now = gameTime();
     const point = coin.motion ? movingCoinPosition(coin.motion, now) : coin;
-    group.current.position.set(...toWorldPosition(point, origin, 1.4));
+    group.current.position.set(...toWorldPosition(point, origin, height));
     group.current.visible = !coin.motion || now < coin.motion.endsAt;
   });
   return <group ref={group}><Coin3D scale={.52} canCollect={canCollect} isCollecting={isCollecting} onClick={onClick} /></group>;

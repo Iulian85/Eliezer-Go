@@ -27,6 +27,7 @@ export interface ServiceCollectedCoin {
 }
 
 export interface ServiceCoinDrop {
+  calibration?: boolean;
   motion?: CoinMotion;
   id: string;
   name: string;
