@@ -128,7 +128,10 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
       </Canvas>
     </div>
     <div className="absolute top-0 inset-x-0 pt-[max(4rem,env(safe-area-inset-top))] px-4 pointer-events-none">
-      <button onClick={onClose} className="pointer-events-auto rounded-full bg-slate-950/90 border border-cyan-500 px-4 py-2 text-white">Închide testul AR</button>
+      <button onClick={() => {
+        // Release the camera before the parent requests its normal video stream.
+        try { window.XR8?.stop(); } finally { onClose(); }
+      }} className="pointer-events-auto rounded-full bg-slate-950/90 border border-cyan-500 px-4 py-2 text-white">Închide testul AR</button>
     </div>
     <div className="absolute bottom-0 inset-x-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/80 to-transparent text-center text-white">
       <p role="status" className={failed ? 'text-amber-300' : ready ? 'text-cyan-300' : 'text-white'}>{message}</p>
