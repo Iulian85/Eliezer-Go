@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
 import { GeoCamera } from './GeoCamera';
-import { toWorldPosition, deviceCameraQuaternion } from '../utils/arSpatial';
+import { toWorldPosition, deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
 import { Coin3D } from './Coin3D';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -89,6 +89,9 @@ export const ARView: React.FC<ARViewProps> = ({
   const [, setDurabilityTick] = useState<number>(0);
   const lastWarningSoundRef = useRef<number>(0);
   const originRef = useRef<GeoCoordinate | null>(null);
+  const visualFilter = useRef(new VisualPositionFilter());
+  const lastGpsTimestamp = useRef(0);
+  const [visualCoords, setVisualCoords] = useState<GeoCoordinate | null>(null);
   const positionRef = useRef<GeoCoordinate | null>(null);
   const collectingRef = useRef(false);
   const [orientation, setOrientation] = useState<Quaternion | null>(null);
@@ -266,6 +269,7 @@ export const ARView: React.FC<ARViewProps> = ({
     !activeCoin.collected &&
     !activeCoin.despawned &&
     userCoords &&
+    visualCoords && (userCoords.accuracy ?? Infinity) <= 25 &&
     orientation && Date.now() - gpsTimestamp < 15000 &&
     realDistance <= 25.0
   );
@@ -434,10 +438,16 @@ export const ARView: React.FC<ARViewProps> = ({
     if (!navigator.geolocation) { setTrackingError('GPS is unavailable on this device.'); return; }
 
     const handlePos = (position: GeolocationPosition) => {
+      if (position.timestamp <= lastGpsTimestamp.current) return;
+      lastGpsTimestamp.current = position.timestamp;
       const { latitude, longitude, accuracy } = position.coords;
       const coords = { latitude, longitude, accuracy };
       positionRef.current = coords;
-      if (!originRef.current) originRef.current = coords;
+      const visual = visualFilter.current.update({ ...coords, timestamp: position.timestamp });
+      if (visual) {
+        if (!originRef.current) originRef.current = visual;
+        setVisualCoords(visual);
+      }
       setUserCoords(coords);
       setGpsTimestamp(position.timestamp);
       setTrackingError(previous => previous?.startsWith('GPS:') ? null : previous);
@@ -650,8 +660,8 @@ export const ARView: React.FC<ARViewProps> = ({
             gl={{ alpha: true, antialias: true }}
             style={{ width: '100%', height: '100%', pointerEvents: 'auto' }}
           >
-            {originRef.current && userCoords && orientation && (
-              <GeoCamera origin={originRef.current} user={userCoords} orientation={orientation} />
+            {originRef.current && visualCoords && orientation && (
+              <GeoCamera origin={originRef.current} user={visualCoords} orientation={orientation} />
             )}
             <ambientLight intensity={1.6} />
             <directionalLight position={[5, 10, 5]} intensity={2.8} />

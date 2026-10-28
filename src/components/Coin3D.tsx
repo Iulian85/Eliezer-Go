@@ -1,6 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Hologram3D } from './Hologram3D';
 import {
   createCoinFrontTexture,
   createCoinBackTexture,
@@ -28,9 +29,6 @@ export const Coin3D: React.FC<Coin3DProps> = ({
   const glowLightRef = useRef<THREE.PointLight>(null);
   const glowHaloRef = useRef<THREE.Mesh>(null);
 
-  const groundVortexRef = useRef<THREE.Mesh>(null);
-  const groundBeamRef = useRef<THREE.Mesh>(null);
-
   // 1. Procedural 1024x1024 Front Texture: Bold 24K Gold "ELZR" typography & cybernetic circuits
   const frontTexture = useMemo(() => createCoinFrontTexture(), []);
 
@@ -40,66 +38,6 @@ export const Coin3D: React.FC<Coin3DProps> = ({
   // 3. Procedural Lateral Rim Texture: 24K Gold milled rim with electric-blue neon energy channels
   const rimTexture = useMemo(() => createCoinRimTexture(), []);
   const rimEmissiveTexture = useMemo(() => createCoinRimEmissiveTexture(), []);
-
-  // 4. Ground Holographic Blue Vortex Portal Texture (as requested from reference image)
-  const groundVortexTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    const cx = 256;
-    const cy = 256;
-
-    // Glowing cyan center gradient
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 240);
-    grad.addColorStop(0, 'rgba(0, 240, 255, 0.95)');
-    grad.addColorStop(0.2, 'rgba(14, 165, 233, 0.7)');
-    grad.addColorStop(0.5, 'rgba(2, 132, 199, 0.35)');
-    grad.addColorStop(0.85, 'rgba(0, 50, 120, 0.15)');
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 240, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Concentric neon blue tech rings
-    const ringRadii = [75, 115, 155, 195, 225];
-    ringRadii.forEach((r, i) => {
-      ctx.strokeStyle = i === 3 ? '#00f0ff' : 'rgba(56, 189, 248, 0.9)';
-      ctx.lineWidth = i === 3 ? 6 : i === 4 ? 2.5 : 3.5;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.stroke();
-    });
-
-    // 36 Cybernetic radial tick notches
-    ctx.strokeStyle = '#00f0ff';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 36; i++) {
-      const angle = (i * Math.PI * 2) / 36;
-      const r1 = 195;
-      const r2 = i % 3 === 0 ? 218 : 208;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(angle) * r1, cy + Math.sin(angle) * r1);
-      ctx.lineTo(cx + Math.cos(angle) * r2, cy + Math.sin(angle) * r2);
-      ctx.stroke();
-    }
-
-    // Glowing bright inner segmented arcs
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-    for (let i = 0; i < 4; i++) {
-      const start = (i * Math.PI) / 2 + 0.15;
-      const end = start + 0.65;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 135, start, end);
-      ctx.stroke();
-    }
-
-    return new THREE.CanvasTexture(canvas);
-  }, []);
 
   // Soft spherical golden radial glow texture for collection aura (NO physical rings)
   const goldenGlowTexture = useMemo(() => {
@@ -133,19 +71,6 @@ export const Coin3D: React.FC<Coin3DProps> = ({
     const speed = isCollecting ? 14 : hovered ? 2.8 : 1.6;
     groupRef.current.rotation.y += delta * speed;
 
-    // Gentle floating bobbing motion at chest level in AR
-    const bob = Math.sin(state.clock.elapsedTime * 2.2) * 0.12;
-    groupRef.current.position.y = bob;
-
-    // Subtle 3D spatial tilt
-    groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 1.5) * 0.08;
-    groupRef.current.rotation.z = Math.cos(state.clock.elapsedTime * 1.1) * 0.04;
-
-    // Rotate Blue Ground Vortex Pedestal
-    if (groundVortexRef.current) {
-      groundVortexRef.current.rotation.z += delta * 0.75;
-    }
-
     // Smooth pulse for collection golden glow and light beam when player is close
     if (canCollect && glowLightRef.current) {
       const pulse = Math.sin(state.clock.elapsedTime * 4.5);
@@ -155,19 +80,15 @@ export const Coin3D: React.FC<Coin3DProps> = ({
         const haloScale = 1 + pulse * 0.08;
         glowHaloRef.current.scale.set(haloScale, haloScale, 1);
       }
-      if (groundBeamRef.current) {
-        (groundBeamRef.current.material as THREE.MeshBasicMaterial).opacity = 0.4 + pulse * 0.15;
-      }
     }
 
     if (isCollecting) {
-      groupRef.current.scale.multiplyScalar(0.92);
+      groupRef.current.scale.multiplyScalar(Math.exp(-5 * delta));
     }
   });
 
   return (
     <group
-      ref={groupRef}
       scale={scale}
       onClick={(e) => {
         e.stopPropagation();
@@ -178,6 +99,8 @@ export const Coin3D: React.FC<Coin3DProps> = ({
         onClick?.();
       }}
     >
+      <Hologram3D />
+      <group ref={groupRef}>
       {/* Generous touch/click collider for mobile tapping in AR */}
       <mesh
         visible={false}
@@ -210,43 +133,6 @@ export const Coin3D: React.FC<Coin3DProps> = ({
                 side={THREE.DoubleSide}
               />
             </mesh>
-          )}
-
-          {/* 4. BLUE GROUND VORTEX PEDESTAL (On the ground beneath the coin) */}
-          {groundVortexTexture && (
-            <group position={[0, -2.5, 0]}>
-              {/* Ground horizontal rotating neon disc */}
-              <mesh
-                ref={groundVortexRef}
-                rotation={[-Math.PI / 2, 0, 0]}
-              >
-                <planeGeometry args={[4.2, 4.2]} />
-                <meshBasicMaterial
-                  map={groundVortexTexture}
-                  transparent
-                  opacity={0.95}
-                  blending={THREE.AdditiveBlending}
-                  depthWrite={false}
-                  side={THREE.DoubleSide}
-                />
-              </mesh>
-
-              {/* Vertical holographic light column rising from ground vortex towards the coin */}
-              <mesh
-                ref={groundBeamRef}
-                position={[0, 1.25, 0]}
-              >
-                <cylinderGeometry args={[1.1, 1.7, 2.5, 32, 1, true]} />
-                <meshBasicMaterial
-                  color="#00f0ff"
-                  transparent
-                  opacity={0.35}
-                  blending={THREE.AdditiveBlending}
-                  depthWrite={false}
-                  side={THREE.DoubleSide}
-                />
-              </mesh>
-            </group>
           )}
 
           {/* Dynamic glowing point lights illuminating the coin and environment */}
@@ -310,6 +196,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
           emissiveIntensity={canCollect ? 0.4 : hovered ? 0.22 : 0.05}
         />
       </mesh>
+      </group>
     </group>
   );
 };

@@ -44,3 +44,31 @@ test('walking east produces parallax without moving the coin', () => {
   assert.ok(relative.x < 0);
   close(relative.z, -10);
 });
+
+import { VisualPositionFilter } from '../src/utils/arSpatial';
+import { wanderGeoCoins, GeoCoin } from '../src/utils/geo';
+
+test('stationary GPS noise is held, inaccurate and out-of-order fixes cannot teleport the observer', () => {
+  const filter = new VisualPositionFilter();
+  const initial = { ...origin, accuracy: 5, timestamp: 1000 };
+  filter.update(initial);
+  const smallNoise = { ...initial, latitude: origin.latitude + .000002, timestamp: 2000 };
+  assert.equal(filter.update(smallNoise)?.latitude, origin.latitude);
+  assert.equal(filter.update({ ...initial, latitude: origin.latitude + .001, accuracy: 80, timestamp: 3000 })?.latitude, origin.latitude);
+  assert.equal(filter.update({ ...initial, latitude: origin.latitude + .001, timestamp: 500 })?.latitude, origin.latitude);
+});
+
+test('sustained walking moves the observer while the address and pedestal stay fixed', () => {
+  const filter = new VisualPositionFilter();
+  filter.update({ ...origin, accuracy: 3, timestamp: 1000 });
+  const destination = { ...origin, latitude: origin.latitude - 10 / 6371000 * 180 / Math.PI };
+  let visual = origin;
+  for (let i = 2; i < 12; i++) visual = filter.update({ ...destination, accuracy: 3, timestamp: i * 1000 })!;
+  assert.ok(Math.abs(toWorldPosition(visual, origin)[2] - 10) < 1);
+  const drop = { ...coin, id: 'fixed', collected: false, distance: 10, bearing: 0 } as GeoCoin;
+  const updated = wanderGeoCoins([drop], destination.latitude, destination.longitude, 100)[0];
+  assert.equal(updated.latitude, drop.latitude);
+  assert.equal(updated.longitude, drop.longitude);
+  close(updated.distance, 20);
+  assert.deepEqual(toWorldPosition(updated, origin, 0), toWorldPosition(drop, origin, 0));
+});
