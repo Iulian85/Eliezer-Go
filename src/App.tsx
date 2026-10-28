@@ -28,7 +28,6 @@ import {
   isFullscreen as checkFullscreen,
   toggleFullscreen,
   subscribeFullscreenChange,
-  initAutoFullscreen,
 } from './utils/fullscreen';
 import { syncHunterToService, recordCollectedCoinToService } from './lib/api';
 import { getIsAdminModeVisible, isWalletAdminAuthorized } from './utils/adminAuth';
@@ -93,12 +92,6 @@ export default function App() {
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string>(
     '⚡ AR COIN HUNT IS LIVE IN GERSTHOFEN! TAP HUNT TO START!'
   );
-
-  // Automatic Fullscreen initialization on launch & on first touch
-  useEffect(() => {
-    const cleanup = initAutoFullscreen();
-    return () => cleanup();
-  }, []);
 
   useEffect(() => {
     const unsub = subscribeFullscreenChange((active) => {

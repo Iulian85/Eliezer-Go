@@ -34,7 +34,6 @@ import {
 } from 'lucide-react';
 import {
   isFullscreen as checkFullscreen,
-  enterFullscreen,
   toggleFullscreen,
   subscribeFullscreenChange,
 } from '../utils/fullscreen';
@@ -107,13 +106,6 @@ export const ARView: React.FC<ARViewProps> = ({
   // Fullscreen State and auto-immersion for AR Camera Mode
   const [isFs, setIsFs] = useState<boolean>(() => checkFullscreen());
   useEffect(() => {
-    // Attempt auto-entering fullscreen for maximum camera immersion
-    enterFullscreen()
-      .then((active) => {
-        setIsFs(active);
-      })
-      .catch(() => {});
-
     const unsub = subscribeFullscreenChange((active) => {
       setIsFs(active);
     });
@@ -623,11 +615,6 @@ export const ARView: React.FC<ARViewProps> = ({
 
   return (
     <div
-      onClickCapture={() => {
-        if (!checkFullscreen()) {
-          enterFullscreen().catch(() => {});
-        }
-      }}
       className="fixed inset-0 z-50 bg-[#060b13] flex flex-col select-none overflow-hidden"
     >
       {/* 1. REAL-TIME BACKGROUND CAMERA STREAM (FIXED REAR CAMERA) */}
@@ -639,11 +626,9 @@ export const ARView: React.FC<ARViewProps> = ({
         autoPlay
         onPlaying={() => {
           setHasCamera(true);
-          enterFullscreen().catch(() => {});
         }}
         onLoadedData={() => {
           setHasCamera(true);
-          enterFullscreen().catch(() => {});
         }}
         style={{
           position: 'fixed',

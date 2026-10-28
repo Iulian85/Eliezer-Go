@@ -165,9 +165,8 @@ export function initTelegramApp(): {
   user: TelegramUser | null;
   startParam: string | null;
 } {
-  // Send direct native events to expand and enter fullscreen
+  // Fullscreen is requested separately by the AR start tap.
   postTelegramEvent('web_app_expand');
-  postTelegramEvent('web_app_request_fullscreen');
   postTelegramEvent('web_app_setup_swipe_behavior', { allow_vertical_swipe: false });
   postTelegramEvent('web_app_set_header_color', { color_key: 'bg_color' });
   postTelegramEvent('web_app_set_background_color', { color: '#060b13' });
@@ -186,15 +185,6 @@ export function initTelegramApp(): {
         try {
           tg.expand();
         } catch {}
-      }
-
-      // 2. Request native fullscreen
-      if (typeof tg.requestFullscreen === 'function') {
-        try {
-          tg.requestFullscreen();
-        } catch (e) {
-          console.debug('Telegram requestFullscreen fallback:', e);
-        }
       }
 
       // 3. Vertical swipe disabling
