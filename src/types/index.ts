@@ -82,6 +82,8 @@ export interface AdCampaign {
 }
 
 export interface ARCoinTarget {
+  creditedBalance?: number;
+  creditedScore?: number;
   id: string;
   name: string;
   value: number;
@@ -95,4 +97,3 @@ export interface ARCoinTarget {
   expiresAt?: number; // timestamp in ms when coin will despawn
   despawned?: boolean; // whether coin has vanished due to expired durability
 }
-

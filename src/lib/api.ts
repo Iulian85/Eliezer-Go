@@ -1,4 +1,6 @@
 import { CoinMotion, validCoinMotion, synchronizeGameClock } from '../utils/coinMotion';
+import { getTelegramWebApp } from '../utils/telegram';
+import { CollectionPosition } from '../utils/collection';
 
 export interface ServiceHunterProfile {
   id?: string;
@@ -75,4 +77,22 @@ export async function fetchCoinDropsFromService(_city = ''): Promise<ServiceCoin
 export async function saveAdminCoinDropToService(_drop: Omit<ServiceCoinDrop, 'id' | 'created_at'>): Promise<ServiceCoinDrop> {
   throw new Error('Administrator authorization required');
 }
-export async function markCoinCollectedInService(_id: string, _telegramId?: number) { return false; }
+export interface CreditReceipt { success: true; credited: boolean; value: number; balance: number; score: number }
+const accountHeaders = () => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getTelegramWebApp()?.initData || '' });
+export async function fetchAccountBalance(): Promise<{ balance: number; score: number } | null> {
+  try {
+    const response = await fetch('/api/account', { headers: accountHeaders(), signal: AbortSignal.timeout(10000) });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return Number.isFinite(data.balance) && Number.isFinite(data.score) ? data : null;
+  } catch { return null; }
+}
+export async function markCoinCollectedInService(coinId: string, position: CollectionPosition, measuredAt: number): Promise<CreditReceipt> {
+  const response = await fetch('/api/coins/collect', { method: 'POST', headers: accountHeaders(),
+    body: JSON.stringify({ coinId, position, measuredAt }), signal: AbortSignal.timeout(15000) });
+  const data = await response.json();
+  if (!response.ok || data.success !== true || ![data.value, data.balance, data.score].every(Number.isFinite)) {
+    throw new Error(typeof data.error === 'string' ? data.error : 'Creditarea nu a fost confirmată.');
+  }
+  return data;
+}

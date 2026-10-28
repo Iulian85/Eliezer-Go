@@ -29,7 +29,7 @@ import {
   toggleFullscreen,
   subscribeFullscreenChange,
 } from './utils/fullscreen';
-import { syncHunterToService, recordCollectedCoinToService } from './lib/api';
+import { syncHunterToService, fetchAccountBalance } from './lib/api';
 import { getIsAdminModeVisible, isWalletAdminAuthorized } from './utils/adminAuth';
 import { useTonAddress } from '@tonconnect/ui-react';
 
@@ -45,6 +45,16 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.isMuted());
   const [achievementToast, setAchievementToast] = useState<AchievementDefinition | null>(null);
   const [isFs, setIsFs] = useState<boolean>(() => checkFullscreen());
+
+  useEffect(() => {
+    if (!telegramUser?.id || isARActive) return;
+    let active = true;
+    void fetchAccountBalance().then(account => {
+      if (active && account) setUserState(previous => ({ ...previous, elzrCollected: account.balance,
+        points: { ...previous.points, gameplay: account.score } }));
+    });
+    return () => { active = false; };
+  }, [telegramUser?.id, isARActive]);
 
   // Biometric Gatekeeper State - requires biometric fingerprint scan on launch
   const [biometricHash, setBiometricHash] = useState<string>(() => {
@@ -281,45 +291,10 @@ export default function App() {
   };
 
   const handleCoinCollected = (coin: ARCoinTarget) => {
-    const multiplier = is2XEventActive ? 2 : 1;
-    const gainedCoins = coin.value * multiplier;
-
-    setUserState((prev) => {
-      const nextState = {
-        ...prev,
-        elzrCollected: prev.elzrCollected + gainedCoins,
-        elzrInCity: Math.max(0, prev.elzrInCity - 1),
-        points: {
-          ...prev.points,
-          gameplay: prev.points.gameplay + gainedCoins * 10,
-        },
-      };
-
-      // Sync updated state to Service
-      if (telegramUser?.id) {
-        syncHunterToService({
-          telegram_id: telegramUser.id,
-          username: telegramUser.username,
-          first_name: telegramUser.first_name,
-          ton_wallet: nextState.wallet.address || tonAddress || undefined,
-          gram_wallet: nextState.wallet.address || tonAddress || undefined,
-          biometric_hash_id: biometricHash || localStorage.getItem('elzr_biometric_hash') || undefined,
-          elzr_balance: nextState.elzrCollected,
-          energy: 100,
-          score: nextState.points.gameplay,
-        });
-
-        recordCollectedCoinToService({
-          telegram_id: telegramUser.id,
-          coin_id: coin.id,
-          coin_type: coin.type,
-          value: gainedCoins,
-          city_name: nextState.city,
-        });
-      }
-
-      return nextState;
-    });
+    if (!Number.isFinite(coin.creditedBalance) || !Number.isFinite(coin.creditedScore)) return;
+    setUserState(prev => ({ ...prev, elzrCollected: coin.creditedBalance!,
+      elzrInCity: Math.max(0, prev.elzrInCity - 1),
+      points: { ...prev.points, gameplay: coin.creditedScore! } }));
   };
 
   const handleRewardBonusCoins = (amount: number) => {

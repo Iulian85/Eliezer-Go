@@ -7,6 +7,7 @@ import { Coin3D } from './Coin3D';
 import { GeoCamera } from './GeoCamera';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { toWorldPosition } from '../utils/arSpatial';
+import { canCollectAt } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -202,7 +203,7 @@ export const ARView: React.FC<ARViewProps> = ({
 
   // Active coins loaded strictly from the API (real GPS coordinates)
   const [geoCoins, setGeoCoins] = useState<GeoCoin[]>([]);
-  const testCollected = useRef(new Set<string>());
+  const sessionCollected = useRef(new Set<string>());
   const collectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (collectionTimer.current) clearTimeout(collectionTimer.current); }, []);
   const [activeCoinId, setActiveCoinId] = useState('');
@@ -241,7 +242,7 @@ export const ARView: React.FC<ARViewProps> = ({
           value: drop.value,
           type: drop.coin_type,
           sponsorName: drop.sponsor_name,
-          collected: drop.status === 'collected' || testCollected.current.has(drop.id),
+          collected: drop.status === 'collected' || sessionCollected.current.has(drop.id),
           distance: dist,
           bearing: bearing,
           motion: drop.motion,
@@ -304,8 +305,8 @@ export const ARView: React.FC<ARViewProps> = ({
     realDistance <= 150.0
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
-  // Can collect ONLY when within 5 meters of the Service drop coordinates
-  const canCollect = Boolean(isCoinInARRange && realDistance <= 5.0 && (userCoords?.accuracy ?? Infinity) <= 10);
+  // Glow and collection use the same unrounded one-metre boundary.
+  const canCollect = Boolean(isCoinInARRange && activeCoin && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -596,8 +597,7 @@ export const ARView: React.FC<ARViewProps> = ({
     if (collectingRef.current || isCollecting || !activeCoin || activeCoin.collected || Date.now() - gpsTimestamp >= 15000) return;
 
     const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
-    const currentDistance = userCoords ? getDistanceMeters(userCoords.latitude, userCoords.longitude, point.latitude, point.longitude) : Infinity;
-    if (!canCollect || currentDistance > 5 || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
+    if (!canCollect || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
         playSound.buttonClick();
@@ -606,16 +606,16 @@ export const ARView: React.FC<ARViewProps> = ({
     }
 
     collectingRef.current = true;
-    setIsCollecting(true);
-    const isTestCollection = activeCoin.calibration === true;
-    const saved = isTestCollection || await markCoinCollectedInService(activeCoin.id);
-    if (!saved) {
-      setCoinError('Colectarea cu salvare în cont nu este încă activată.');
+    let receipt;
+    try {
+      receipt = await markCoinCollectedInService(activeCoin.id, userCoords!, gpsTimestamp + gameTime() - Date.now());
+    } catch (error) {
+      setCoinError(error instanceof Error ? error.message : 'Creditarea nu a fost confirmată. Reîncearcă.');
       collectingRef.current = false;
-      setIsCollecting(false);
       return;
     }
-
+    setCoinError(null);
+    setIsCollecting(true);
     const isRare = activeCoin.type === 'rare' || activeCoin.type === 'merchant';
     if (soundEnabled) {
       playSound.coinCollected(isRare);
@@ -629,9 +629,11 @@ export const ARView: React.FC<ARViewProps> = ({
       colors: ['#fbbf24', '#f59e0b', '#38bdf8', '#ffffff'],
     });
 
-    if (!isTestCollection) setSuccessMessage(`+1 ${activeCoin.name} Collected! (+${activeCoin.value} PTS)`);
+    setSuccessMessage(receipt.credited ? `+${receipt.value} ELZR` : 'Colectare confirmată');
 
-    if (!isTestCollection) onCoinCollected({
+    onCoinCollected({
+      creditedBalance: receipt.balance,
+      creditedScore: receipt.score,
       id: activeCoin.id,
       name: activeCoin.name,
       value: activeCoin.value,
@@ -644,7 +646,7 @@ export const ARView: React.FC<ARViewProps> = ({
     });
 
     collectionTimer.current = setTimeout(() => {
-      if (isTestCollection) testCollected.current.add(activeCoin.id);
+      sessionCollected.current.add(activeCoin.id);
       setGeoCoins(coins => coins.map(coin => coin.id === activeCoin.id ? { ...coin, collected: true } : coin));
       setGeoCoins((currentCoins) => {
         const remaining = currentCoins.filter(

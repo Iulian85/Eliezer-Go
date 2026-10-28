@@ -27,6 +27,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
   const meshRef = useRef<THREE.Mesh>(null);
   const glowLightRef = useRef<THREE.PointLight>(null);
   const glowHaloRef = useRef<THREE.Mesh>(null);
+  const glowCameraPosition = useRef(new THREE.Vector3());
 
   // 1. Procedural 1024x1024 Front Texture: Bold 24K Gold "ELZR" typography & cybernetic circuits
   const frontTexture = useMemo(() => createCoinFrontTexture(), []);
@@ -76,6 +77,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
       glowLightRef.current.intensity = 7 + pulse * 2.5;
 
       if (glowHaloRef.current) {
+        glowHaloRef.current.lookAt(state.camera.getWorldPosition(glowCameraPosition.current));
         const haloScale = 1 + pulse * 0.08;
         glowHaloRef.current.scale.set(haloScale, haloScale, 1);
       }
@@ -115,7 +117,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
-      {/* GOLDEN GLOW AURA (NO PHYSICAL RINGS) & BLUE GROUND VORTEX */}
+      {/* Collection halo faces the camera even while the coin rotates. */}
       {canCollect && (
         <group>
           {/* Pure Radiant Golden Glow Halo behind the coin (Zero physical rings!) */}
