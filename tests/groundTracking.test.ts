@@ -7,16 +7,30 @@ import { telegramOrientationQuaternion } from '../src/utils/telegramOrientation'
 const frame = { position: { x: 0, y: 1.6, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 },
   intrinsics: new PerspectiveCamera(65, 1, .05, 200).projectionMatrix.elements, trackingStatus: 'NORMAL' };
 
-test('ground tracking waits for scale initialization and hides immediately on tracking loss', () => {
+test('ground tracking requires scale initialization, translation, and a plausible floor height', () => {
   const gate = new GroundTrackingGate();
+  assert.equal(gate.update(frame, 0), false, 'NORMAL alone does not establish absolute scale');
   assert.equal(gate.update({ ...frame, trackingReason: 'INITIALIZING' }, 0), false);
   assert.equal(gate.update(frame, 100), false);
   assert.equal(gate.update(frame, 899), false);
-  assert.equal(gate.update(frame, 900), true);
+  assert.equal(gate.update(frame, 900), false, 'rotation-only/static camera must not enable the coin');
+  const translated = { ...frame, position: { x: 0, y: 1.4, z: .3 } };
+  assert.equal(gate.update({ ...translated, position: { ...translated.position, y: 0 } }, 1000), false);
+  assert.equal(gate.update(translated, 1100), true);
   assert.equal(gate.update({ ...frame, trackingStatus: 'LIMITED' }, 1000), false);
+  assert.equal(gate.needsRestart, true);
   assert.equal(gate.update(frame, 1500), false);
-  assert.equal(gate.update(frame, 2300), true);
+  assert.equal(gate.update(translated, 2300), false, 'a recovered map cannot silently reposition a locked coin');
   assert.equal(gate.update({ ...frame, position: { x: NaN, y: 0, z: 0 } }, 2400), false);
+});
+
+test('initialization received via pipeline event also gates the frame stream', () => {
+  const gate = new GroundTrackingGate();
+  gate.observeStatus('LIMITED', 'INITIALIZING');
+  assert.equal(gate.update(frame, 0), false);
+  assert.equal(gate.update({ ...frame, position: { x: .4, y: 1.6, z: 0 } }, 900), true);
+  gate.observeStatus('LIMITED');
+  assert.equal(gate.update(frame, 1000), false);
 });
 
 test('fixed ground coin stays at chest height as tracked camera walks back and lowers', () => {

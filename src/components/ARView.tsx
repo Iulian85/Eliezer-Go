@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Canvas } from '@react-three/fiber';
 import { Quaternion, Vector3 } from 'three';
-import { GeoCamera } from './GeoCamera';
-import { toWorldPosition, deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
-import { Coin3D } from './Coin3D';
+import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
 import { GroundARTest } from './GroundARTest';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
@@ -668,41 +665,7 @@ export const ARView: React.FC<ARViewProps> = ({
         className="opacity-100"
       />
 
-      {/* 2. WebGL THREE.JS AR OVERLAY - COIN HOVERING AT NATURAL DISTANCE OVER GROUND VORTEX */}
-      {hasCamera && !groundTest && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
-          <Canvas
-            camera={{ position: [0, 1.6, 0], fov: 65, near: 0.05, far: 500 }}
-            gl={{ alpha: true, antialias: true }}
-            style={{ width: '100%', height: '100%', pointerEvents: 'auto' }}
-          >
-            {originRef.current && visualCoords && orientation && (
-              <GeoCamera origin={originRef.current} user={visualCoords} orientation={orientation} />
-            )}
-            <ambientLight intensity={1.6} />
-            <directionalLight position={[5, 10, 5]} intensity={2.8} />
-
-            {/* ONLY render 3D coin if player is PHYSICALLY present at the Service drop location (<= 25m) */}
-            {isCoinInARRange && activeCoin && originRef.current && (
-              <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
-                <pointLight
-                  position={[0, 1.2, 1.2]}
-                  intensity={6.5}
-                  color="#fbbf24"
-                  distance={8}
-                />
-                <Coin3D
-                  scale={0.52}
-                  hovered={true}
-                  canCollect={canCollect}
-                  isCollecting={isCollecting}
-                  onClick={collectCoin}
-                />
-              </group>
-            )}
-          </Canvas>
-        </div>
-      )}
+      {/* GPS is navigation only. Physical coin rendering belongs to the tracked camera session. */}
 
       {/* 3. AR HUD CONTROLS OVERLAY (Radar, Weather, Compass & Stats - NO middle distance message) */}
       <div style={{ position: 'relative', zIndex: 10 }} className="flex-1 flex flex-col justify-between pointer-events-none">
@@ -799,8 +762,8 @@ export const ARView: React.FC<ARViewProps> = ({
               if (videoRef.current) videoRef.current.srcObject = null;
               setGroundTest(true);
             }} className="bg-cyan-950 border border-cyan-500 text-cyan-200 rounded-xl px-4 py-2 disabled:opacity-40">
-            {!orientation ? 'TEST SOL · AȘTEAPTĂ BUSOLA' : !userCoords || (userCoords.accuracy ?? Infinity) > 10
-              ? 'TEST SOL · AȘTEAPTĂ GPS PRECIS' : realDistance > 25 ? 'TEST SOL · APROPIE-TE DE MONEDĂ' : 'TEST: FIXARE PE SOL'}
+            {!orientation ? 'FIXARE · AȘTEAPTĂ BUSOLA' : !userCoords || (userCoords.accuracy ?? Infinity) > 10
+              ? 'FIXARE · AȘTEAPTĂ GPS PRECIS' : realDistance > 25 ? 'FIXARE · APROPIE-TE DE MONEDĂ' : 'FIXEAZĂ HOLOGRAMA PE SOL'}
           </button>
           {!orientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}

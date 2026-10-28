@@ -43,6 +43,8 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
     let engine: TrackingEngine | null = null;
     let status = '';
     let seenFrame = false;
+    let lastFrameAt = 0;
+    let lastReport = 0;
     const gate = new GroundTrackingGate();
     const report = (text: string) => { if (!disposed && status !== text) { status = text; setMessage(text); } };
     const fail = (text: string) => {
@@ -69,6 +71,11 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
     const timeout = setTimeout(() => {
       if (!seenFrame) fail('Nu am primit urmărirea camerei în Telegram. Închide testul și verifică permisiunile camerei și senzorilor.');
     }, 75000);
+    const watchdog = setInterval(() => {
+      if (seenFrame && performance.now() - lastFrameAt > 1500) {
+        fail('Camera AR nu mai transmite poziția. Închide și repornește fixarea.');
+      }
+    }, 500);
     void loadTrackingEngine().then(async loaded => {
       if (disposed || terminal) return;
       engine = loaded;
@@ -79,25 +86,38 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
         engine.XrController.pipelineModule(),
         {
           name: 'eliezer-ground-tracking',
+          listeners: [{ event: 'reality.trackingstatus', process: ({ detail }: { detail: { status: string; reason?: string } }) => {
+            gate.observeStatus(detail.status, detail.reason);
+          } }],
           onStart: () => {
             if (disposed || terminal) return;
             const alignment = alignmentRef.current();
             if (!alignment) { fail('Așteaptă GPS precis și busola, apoi repornește testul lângă monedă.'); return; }
             tracking.current.position = fixedGroundPosition(alignment);
-            engine!.XrController.updateCameraProjectionMatrix({ origin: { x: 0, y: 1.6, z: 0 }, facing: alignment.facing });
+            engine!.XrController.updateCameraProjectionMatrix({ origin: { x: 0, y: 0, z: 0 }, facing: alignment.facing });
             started.current = true;
-            report('Îndreaptă camera spre asfalt. Mișcă telefonul lent lateral pentru scanare.');
+            report('Îndreaptă camera spre asfalt și deplasează telefonul înainte și înapoi pentru calibrare.');
           },
           onUpdate: ({ processCpuResult }: { processCpuResult: { reality?: TrackedReality } }) => {
             if (disposed || terminal || !started.current) return;
             const frame = processCpuResult.reality;
             if (!frame) return;
             seenFrame = true;
+            lastFrameAt = performance.now();
             const visible = gate.update(frame, performance.now());
+            if (gate.needsRestart) {
+              fail('Urmărirea s-a pierdut. Am ascuns moneda pentru a nu o muta. Închide și repornește fixarea.');
+              return;
+            }
             tracking.current = { ...tracking.current, frame: visible ? frame : null, visible, receivedAt: performance.now() };
             setReady(previous => previous === visible ? previous : visible);
-            report(visible ? 'Urmărire activă · moneda la 1,3 m deasupra solului estimat' :
-              'Scanează asfaltul cu mișcări lente. Moneda apare când urmărirea devine stabilă.');
+            if (performance.now() - lastReport > 250) {
+              lastReport = performance.now();
+              const [x, , z] = tracking.current.position;
+              const distance = Math.hypot(frame.position.x - x, frame.position.z - z);
+              report(visible ? `AR · distanță ${distance.toFixed(1)} m · cameră la ${frame.position.y.toFixed(1)} m de sol` :
+                'Calibrare: privește asfaltul și fă lent un pas înainte, apoi înapoi. Aștept scara reală și deplasarea camerei.');
+            }
           },
           onException: () => fail('Motorul AR nu a pornit în acest Telegram. Închide testul și verifică permisiunile camerei și senzorilor.'),
           onCameraStatusChange: ({ status: cameraStatus }: { status: string }) => {
@@ -111,6 +131,7 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
     return () => {
       disposed = true; started.current = false;
       clearTimeout(timeout);
+      clearInterval(watchdog);
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
       tracking.current.visible = false;
