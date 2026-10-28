@@ -780,53 +780,10 @@ export const ARView: React.FC<ARViewProps> = ({
           </div>
         </div>
 
-        {/* Screenshot Reference HUD Row: [ELZR COIN | RARE] & [ 📍 Real Distance ] */}
-        <div className="px-3.5 pt-1 flex items-center justify-between pointer-events-auto">
-          {/* Top Left: ELZR COIN RARE Badge */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#081528]/90 backdrop-blur-md border border-cyan-500/50 shadow-[0_0_15px_rgba(0,240,255,0.25)]">
-            <div className="w-5 h-5 rounded-lg bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-black font-sans tracking-wider text-white uppercase leading-tight">
-                {activeCoin?.name || 'ELZR COIN'}
-              </div>
-              <div className="text-[9px] font-mono font-bold tracking-widest text-cyan-400 uppercase leading-tight">
-                {activeCoin?.type?.toUpperCase() || 'RARE'}
-              </div>
-            </div>
-          </div>
-
-          {/* Top Right: Real Distance Capsule Pill */}
-          <div
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full backdrop-blur-md border shadow-[0_0_15px_rgba(0,240,255,0.25)] ${
-              isCoinInARRange
-                ? 'bg-[#081528]/90 border-cyan-500/50'
-                : 'bg-[#180e22]/90 border-amber-500/50'
-            }`}
-          >
-            <MapPin
-              className={`w-3.5 h-3.5 ${
-                isCoinInARRange
-                  ? 'text-cyan-400 fill-cyan-400/30 animate-pulse'
-                  : 'text-amber-400 fill-amber-400/30'
-              }`}
-            />
-            <span className="text-xs font-black font-mono text-white tracking-wide">
-              {!userCoords
-                ? 'ACQUIRING GPS...'
-                : realDistance >= 1000
-                ? `${(realDistance / 1000).toFixed(1)} km`
-                : `${Math.round(realDistance)} m`}
-            </span>
-          </div>
-        </div>
-
         <div className="px-4 text-center text-xs text-white pointer-events-auto">
           {!orientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}
           {!coinError && geoCoins.length === 0 && <p>No active coins available.</p>}
-          {userCoords && <p>GPS accuracy: ±{Math.round(userCoords.accuracy ?? 0)} m{Date.now() - gpsTimestamp >= 15000 ? ' — waiting for a fresh position' : ''}</p>}
         </div>
         {/* Notifications (Center-Top under header) */}
         <div className="flex flex-col gap-2 pointer-events-none">
