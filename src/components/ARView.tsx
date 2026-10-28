@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Quaternion, Vector3 } from 'three';
 import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
 import { GroundARTest } from './GroundARTest';
+import { loadTrackingEngine } from '../utils/trackingEngine';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -77,6 +78,10 @@ export const ARView: React.FC<ARViewProps> = ({
   campaigns,
 }) => {
   const [groundTest, setGroundTest] = useState(false);
+  const [loadingGround, setLoadingGround] = useState(false);
+  const [groundError, setGroundError] = useState<string | null>(null);
+  const groundRequest = useRef(0);
+  useEffect(() => () => { groundRequest.current += 1; }, []);
   const nativeOrientationAt = useRef(0);
   const orientationAt = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -755,16 +760,28 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
 
         <div className="px-4 text-center text-xs text-white pointer-events-auto">
-          <button disabled={!orientation || !userCoords || realDistance > 25 || (userCoords.accuracy ?? Infinity) > 10}
-            onClick={() => {
-              streamRef.current?.getTracks().forEach(track => track.stop());
-              streamRef.current = null;
-              if (videoRef.current) videoRef.current.srcObject = null;
-              setGroundTest(true);
+          <button disabled={loadingGround || !orientation || !userCoords || realDistance > 25 || (userCoords.accuracy ?? Infinity) > 10}
+            onClick={async () => {
+              const request = ++groundRequest.current;
+              setGroundError(null); setLoadingGround(true);
+              try {
+                // Keep the working camera visible during the engine/WASM download.
+                await loadTrackingEngine();
+                if (request !== groundRequest.current) return;
+                streamRef.current?.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+                if (videoRef.current) videoRef.current.srcObject = null;
+                setGroundTest(true);
+              } catch {
+                if (request === groundRequest.current) setGroundError('Motorul AR nu s-a încărcat. Camera obișnuită rămâne activă.');
+              } finally {
+                if (request === groundRequest.current) setLoadingGround(false);
+              }
             }} className="bg-cyan-950 border border-cyan-500 text-cyan-200 rounded-xl px-4 py-2 disabled:opacity-40">
-            {!orientation ? 'FIXARE · AȘTEAPTĂ BUSOLA' : !userCoords || (userCoords.accuracy ?? Infinity) > 10
+            {loadingGround ? 'Se pregătește AR… camera rămâne activă' : !orientation ? 'FIXARE · AȘTEAPTĂ BUSOLA' : !userCoords || (userCoords.accuracy ?? Infinity) > 10
               ? 'FIXARE · AȘTEAPTĂ GPS PRECIS' : realDistance > 25 ? 'FIXARE · APROPIE-TE DE MONEDĂ' : 'FIXEAZĂ HOLOGRAMA PE SOL'}
           </button>
+          {groundError && <p role="alert" className="bg-slate-900 text-amber-300 p-3 rounded-xl">{groundError}</p>}
           {!orientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}
           {!coinError && geoCoins.length === 0 && <p>No active coins available.</p>}
@@ -913,7 +930,7 @@ export const ARView: React.FC<ARViewProps> = ({
               (userCoords.accuracy ?? Infinity) > 10 || Date.now() - gpsTimestamp > 15000 || Date.now() - orientationAt.current > 3000) return null;
           return { user: { ...userCoords }, coin: { latitude: activeCoin.latitude, longitude: activeCoin.longitude }, facing: orientation.clone() };
         }}
-        onClose={() => { setGroundTest(false); void startCameraStream(); }}
+        onClose={(error?: string) => { setGroundTest(false); setGroundError(error ?? null); void startCameraStream(); }}
       />}
       {/* MODALS */}
       {userCoords && <RadarMapOverlay

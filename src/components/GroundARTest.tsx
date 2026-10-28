@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Group, PerspectiveCamera } from 'three';
 import { Coin3D } from './Coin3D';
@@ -27,14 +28,24 @@ function TrackedCoin({ tracking }: { tracking: React.RefObject<TrackingState> })
   </group>;
 }
 
-export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => GroundAlignment | null; onClose: () => void }) {
+class CameraRenderBoundary extends React.Component<{ onError: () => void; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onError(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
+export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => GroundAlignment | null; onClose: (error?: string) => void }) {
   const feed = useRef<HTMLCanvasElement>(null);
   const alignmentRef = useRef(getAlignment);
   alignmentRef.current = getAlignment;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const tracking = useRef<TrackingState>({ frame: null, visible: false, receivedAt: 0, position: [0, 1.3, 0] });
   const [message, setMessage] = useState('Se încarcă motorul AR…');
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [cameraStarted, setCameraStarted] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -54,7 +65,7 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
       tracking.current.visible = false;
       tracking.current.frame = null;
       setFailed(true); report(text);
-      engine?.stop();
+      try { engine?.stop(); } finally { closeRef.current(text); }
     };
     const resize = () => {
       if (!feed.current) return;
@@ -70,7 +81,7 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
     document.addEventListener('visibilitychange', onVisibility);
     const timeout = setTimeout(() => {
       if (!seenFrame) fail('Nu am primit urmărirea camerei în Telegram. Închide testul și verifică permisiunile camerei și senzorilor.');
-    }, 75000);
+    }, 15000);
     const watchdog = setInterval(() => {
       if (seenFrame && performance.now() - lastFrameAt > 1500) {
         fail('Camera AR nu mai transmite poziția. Închide și repornește fixarea.');
@@ -96,11 +107,12 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
             tracking.current.position = fixedGroundPosition(alignment);
             engine!.XrController.updateCameraProjectionMatrix({ origin: { x: 0, y: 0, z: 0 }, facing: alignment.facing });
             started.current = true;
+            setCameraStarted(true);
             report('Îndreaptă camera spre asfalt și deplasează telefonul înainte și înapoi pentru calibrare.');
           },
-          onUpdate: ({ processCpuResult }: { processCpuResult: { reality?: TrackedReality } }) => {
+          onUpdate: ({ processCpuResult }: { processCpuResult?: { reality?: TrackedReality } }) => {
             if (disposed || terminal || !started.current) return;
-            const frame = processCpuResult.reality;
+            const frame = processCpuResult?.reality;
             if (!frame) return;
             seenFrame = true;
             lastFrameAt = performance.now();
@@ -139,25 +151,35 @@ export function GroundARTest({ getAlignment, onClose }: { getAlignment: () => Gr
     };
   }, []);
 
-  return <div className="fixed inset-0 z-[100] bg-black" role="dialog" aria-label="Test ancorare pe sol">
-    <canvas ref={feed} className="absolute inset-0 w-full h-full" />
-    <div className="absolute inset-0">
+  return createPortal(<div style={{ position: 'fixed', inset: 0, zIndex: 2147483000, isolation: 'isolate', background: '#060b13' }} role="dialog" aria-label="Test ancorare pe sol">
+    <canvas ref={feed} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 0 }} />
+    <div className="absolute inset-0" style={{ zIndex: 1, pointerEvents: 'none' }}>
+      <CameraRenderBoundary onError={() => {
+        try { window.XR8?.stop(); } finally { closeRef.current('Afișarea 3D nu a pornit în Telegram. Am revenit la cameră.'); }
+      }}>
       <Canvas dpr={1} camera={{ near: .05, far: 200 }} gl={{ alpha: true, antialias: true }}
-        onCreated={({ camera }) => { (camera as PerspectiveCamera & { manual: boolean }).manual = true; }}>
+        onCreated={({ camera, gl }) => {
+          gl.setClearColor(0x000000, 0);
+          (camera as PerspectiveCamera & { manual: boolean }).manual = true;
+        }}>
         <ambientLight intensity={1.8} /><directionalLight position={[3, 5, 4]} intensity={3} />
         <TrackedCoin tracking={tracking} />
       </Canvas>
+      </CameraRenderBoundary>
     </div>
-    <div className="absolute top-0 inset-x-0 pt-[max(4rem,env(safe-area-inset-top))] px-4 pointer-events-none">
+    {!cameraStarted && <div style={{ position: 'absolute', inset: 0, zIndex: 2, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+      <p className="rounded-xl bg-slate-900 p-5 text-white text-center" role="status">Se pornește camera AR…<br />Dacă nu pornește, revii automat la camera obișnuită.</p>
+    </div>}
+    <div style={{ zIndex: 3 }} className="absolute top-0 inset-x-0 pt-[max(4rem,env(safe-area-inset-top))] px-4 pointer-events-none">
       <button onClick={() => {
         // Release the camera before the parent requests its normal video stream.
         try { window.XR8?.stop(); } finally { onClose(); }
       }} className="pointer-events-auto rounded-full bg-slate-950/90 border border-cyan-500 px-4 py-2 text-white">Închide testul AR</button>
     </div>
-    <div className="absolute bottom-0 inset-x-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/80 to-transparent text-center text-white">
+    <div style={{ zIndex: 3 }} className="absolute bottom-0 inset-x-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/80 to-transparent text-center text-white">
       <p role="status" className={failed ? 'text-amber-300' : ready ? 'text-cyan-300' : 'text-white'}>{message}</p>
       <p className="text-xs text-slate-300 mt-2">TEST · Fă câțiva pași înapoi și verifică dacă baza rămâne pe același loc.</p>
       <a href="/ar-engine/v1.0.0/LICENSE.txt" target="_blank" rel="noreferrer" className="text-[9px] text-slate-500">8th Wall · © 2026 Niantic Spatial, Inc. · Licență și excluderea garanțiilor</a>
     </div>
-  </div>;
+  </div>, document.body);
 }
