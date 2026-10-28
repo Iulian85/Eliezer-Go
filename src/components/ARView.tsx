@@ -48,6 +48,7 @@ import {
   getRemainingDurability,
   formatCountdown,
   reverseGeocodeUserLocation,
+  formatGpsCoordinates,
 } from '../utils/geo';
 import { RadarMapOverlay } from './RadarMapOverlay';
 import { CoinSkinId, CameraFilterId, COIN_SKINS, CAMERA_FILTERS } from '../utils/skins';
@@ -147,17 +148,18 @@ export const ARView: React.FC<ARViewProps> = ({
   // User Geolocation Coordinates - dynamically acquired from device GPS
   const [userCoords, setUserCoords] = useState<GeoCoordinate | null>(null);
   const [, setIsGpsReady] = useState<boolean>(false);
-  const [liveLocationName, setLiveLocationName] = useState<string>(() => cityName || 'GERSTHOFEN, Bavaria');
+  const [liveLocationName, setLiveLocationName] = useState<string>('Waiting for GPS…');
 
   // Reverse geocode real user GPS coordinates to display exact city/region
   useEffect(() => {
     if (!userCoords) return;
+    setLiveLocationName(formatGpsCoordinates(userCoords.latitude, userCoords.longitude));
     let active = true;
     reverseGeocodeUserLocation(userCoords.latitude, userCoords.longitude).then((res) => {
-      if (active && res.fullLocation) {
+      if (active && res.city && res.fullLocation) {
         setLiveLocationName(res.fullLocation);
       }
-    });
+    }).catch(() => {});
     return () => {
       active = false;
     };
@@ -955,11 +957,12 @@ export const ARView: React.FC<ARViewProps> = ({
           </div>
 
           {/* Row 2: Location & Hunters Stats Badges */}
-          <div className="flex items-center justify-between w-full pt-1.5 border-t border-white/10">
-            <div className="px-3 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/20 shadow-xl flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 w-full pt-1.5 border-t border-white/10">
+            <div className="min-w-0 px-3 py-1 rounded-xl bg-slate-950/70 backdrop-blur-md border border-white/20 shadow-xl flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-rose-400 fill-rose-400/20 shrink-0" />
               <span className="text-[11px] font-mono font-bold text-white tracking-wide">
                 {liveLocationName}
+                {userCoords && <span className="block text-[10px] font-normal text-slate-300">Accuracy: ±{Math.round(userCoords.accuracy ?? 0)} m{trackingError?.startsWith('GPS:') ? ' · Last known position' : ''}</span>}
               </span>
             </div>
 
@@ -979,10 +982,10 @@ export const ARView: React.FC<ARViewProps> = ({
       </div>
 
       {/* MODALS */}
-      <RadarMapOverlay
+      {userCoords && <RadarMapOverlay
         isOpen={isRadarOpen}
         onClose={() => setIsRadarOpen(false)}
-        userCoords={userCoords || { latitude: 48.4284, longitude: 10.8719, accuracy: 5 }}
+        userCoords={userCoords}
         coins={geoCoins}
         activeCoinId={activeCoinId}
         onSelectCoin={(coinId) => {
@@ -990,7 +993,7 @@ export const ARView: React.FC<ARViewProps> = ({
           setIsRadarOpen(false);
         }}
         currentYaw={yaw}
-      />
+      />}
 
       <CoinSkinsMenu
         isOpen={isSkinsMenuOpen}

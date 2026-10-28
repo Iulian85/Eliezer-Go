@@ -11,14 +11,16 @@ export interface GeoCoordinate {
   accuracy?: number;
 }
 
-/**
- * Reverse geocodes real GPS coordinates to resolve live city and region names.
- */
+export function formatGpsCoordinates(lat: number, lon: number): string {
+  return `${Math.abs(lat).toFixed(6)}° ${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(6)}° ${lon < 0 ? 'W' : 'E'}`;
+}
+
+// Local fallback: coordinates remain on the device.
 export async function reverseGeocodeUserLocation(
   lat: number,
   lon: number
 ): Promise<{ city: string; region: string; fullLocation: string }> {
-  return { city: 'GPS location', region: '', fullLocation: 'GPS location' };
+  return { city: '', region: '', fullLocation: formatGpsCoordinates(lat, lon) };
 }
 
 export interface GeoCoin {

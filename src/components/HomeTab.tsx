@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UserState } from '../types';
 import { Zap, Globe2, Users, Radar, Sparkles, Navigation, RefreshCw, Share2, Trophy } from 'lucide-react';
 import { triggerHaptic } from '../utils/telegram';
 import { DailyStreakCard } from './DailyStreakCard';
+import { formatGpsCoordinates, GeoCoordinate } from '../utils/geo';
 
 interface HomeTabProps {
   userState: UserState;
@@ -23,32 +24,38 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onOpenDailyCheckIn,
   onOpenHunterCard,
 }) => {
-  const [isDetectingGPS, setIsDetectingGPS] = useState(false);
+  const [isDetectingGPS, setIsDetectingGPS] = useState(true);
+  const [coordinates, setCoordinates] = useState<GeoCoordinate | null>(null);
+  const [gpsError, setGpsError] = useState('');
+  const [gpsRequest, setGpsRequest] = useState(0);
 
   const detectLocation = () => {
     triggerHaptic('medium');
-    setIsDetectingGPS(true);
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            onUpdateCity('GPS LOCATION');
-          } catch {
-            onUpdateCity('GERSTHOFEN');
-          } finally {
-            setIsDetectingGPS(false);
-          }
-        },
-        () => {
-          setIsDetectingGPS(false);
-        },
-        { timeout: 7000 }
-      );
-    } else {
-      setIsDetectingGPS(false);
-    }
+    setGpsRequest(value => value + 1);
   };
+
+  useEffect(() => {
+    let active = true;
+    setIsDetectingGPS(true);
+    setGpsError('');
+    if (!navigator.geolocation) {
+      setGpsError('GPS is unavailable on this device.');
+      setIsDetectingGPS(false);
+      return;
+    }
+    const watch = navigator.geolocation.watchPosition(position => {
+      if (!active) return;
+      const { latitude, longitude, accuracy } = position.coords;
+      setCoordinates({ latitude, longitude, accuracy });
+      setGpsError('');
+      setIsDetectingGPS(false);
+    }, error => {
+      if (!active) return;
+      setGpsError(error.code === 1 ? 'Allow location access in your browser settings.' : 'Waiting for a fresh GPS position. Try outdoors or refresh.');
+      setIsDetectingGPS(false);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    return () => { active = false; navigator.geolocation.clearWatch(watch); };
+  }, [gpsRequest]);
 
   return (
     <div className="flex flex-col items-center gap-4 px-4 pt-6 pb-28 max-w-md mx-auto">
@@ -130,11 +137,13 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         <div className="flex items-start justify-between">
           <div>
             <div className="text-xs font-bold text-cyan-400 tracking-wider uppercase mb-1 font-mono">
-              GPS CITY
+              YOUR GPS LOCATION
             </div>
-            <div className="text-3xl font-extrabold text-white tracking-tight my-1 uppercase font-sans">
-              {userState.city}
+            <div className="text-base font-bold text-white tracking-tight my-1 font-mono break-words">
+              {coordinates ? formatGpsCoordinates(coordinates.latitude, coordinates.longitude) : 'Waiting for GPS…'}
             </div>
+            {coordinates && <p className="text-xs text-slate-400">Accuracy: ±{Math.round(coordinates.accuracy ?? 0)} m{gpsError ? ' · Last known position' : ''}</p>}
+            {gpsError && <p role="status" className="text-xs text-amber-300 mt-2">{gpsError}</p>}
           </div>
           <button
             onClick={detectLocation}
