@@ -15,3 +15,5 @@ fix-ar.cjs
 *.key
 *.p12
 *.bak
+
+/public/ar-engine/

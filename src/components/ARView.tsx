@@ -4,6 +4,8 @@ import { Quaternion, Vector3 } from 'three';
 import { GeoCamera } from './GeoCamera';
 import { toWorldPosition, deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
 import { Coin3D } from './Coin3D';
+import { GroundARTest } from './GroundARTest';
+import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
 import confetti from 'canvas-confetti';
@@ -77,6 +79,9 @@ export const ARView: React.FC<ARViewProps> = ({
   initialStream,
   campaigns,
 }) => {
+  const [groundTest, setGroundTest] = useState(false);
+  const nativeOrientationAt = useRef(0);
+  const orientationAt = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
@@ -410,6 +415,7 @@ export const ARView: React.FC<ARViewProps> = ({
 
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (performance.now() - nativeOrientationAt.current < 500) return;
       const e = event as DeviceOrientationEvent & { webkitCompassHeading?: number; webkitCompassAccuracy?: number };
       if (e.beta === null || e.gamma === null) return;
       let alpha: number;
@@ -420,14 +426,24 @@ export const ARView: React.FC<ARViewProps> = ({
       } else return; // Relative yaw has no geographic north reference.
       const angle = window.screen.orientation?.angle ?? (window as Window & { orientation?: number }).orientation ?? 0;
       const quaternion = deviceCameraQuaternion(alpha, e.beta, e.gamma, angle);
+      orientationAt.current = Date.now();
       setOrientation(quaternion);
       setTrackingError(previous => previous?.startsWith('GPS:') ? previous : null);
       const forward = new Vector3(0, 0, -1).applyQuaternion(quaternion);
       setSensorYaw((Math.atan2(forward.x, -forward.z) * 180 / Math.PI + 360) % 360);
     };
+    const cleanupNative = subscribeTelegramOrientation(quaternion => {
+      nativeOrientationAt.current = performance.now();
+      orientationAt.current = Date.now();
+      setOrientation(quaternion);
+      setTrackingError(previous => previous?.startsWith('GPS:') ? previous : null);
+      const forward = new Vector3(0, 0, -1).applyQuaternion(quaternion);
+      setSensorYaw((Math.atan2(forward.x, -forward.z) * 180 / Math.PI + 360) % 360);
+    });
     window.addEventListener('deviceorientation', handleOrientation);
     window.addEventListener('deviceorientationabsolute', handleOrientation as EventListener);
     return () => {
+      cleanupNative();
       window.removeEventListener('deviceorientation', handleOrientation);
       window.removeEventListener('deviceorientationabsolute', handleOrientation as EventListener);
     };
@@ -653,7 +669,7 @@ export const ARView: React.FC<ARViewProps> = ({
       />
 
       {/* 2. WebGL THREE.JS AR OVERLAY - COIN HOVERING AT NATURAL DISTANCE OVER GROUND VORTEX */}
-      {hasCamera && (
+      {hasCamera && !groundTest && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
           <Canvas
             camera={{ position: [0, 1.6, 0], fov: 65, near: 0.05, far: 500 }}
@@ -776,6 +792,16 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
 
         <div className="px-4 text-center text-xs text-white pointer-events-auto">
+          <button disabled={!orientation || !userCoords || realDistance > 25 || (userCoords.accuracy ?? Infinity) > 10}
+            onClick={() => {
+              streamRef.current?.getTracks().forEach(track => track.stop());
+              streamRef.current = null;
+              if (videoRef.current) videoRef.current.srcObject = null;
+              setGroundTest(true);
+            }} className="bg-cyan-950 border border-cyan-500 text-cyan-200 rounded-xl px-4 py-2 disabled:opacity-40">
+            {!orientation ? 'TEST SOL · AȘTEAPTĂ BUSOLA' : !userCoords || (userCoords.accuracy ?? Infinity) > 10
+              ? 'TEST SOL · AȘTEAPTĂ GPS PRECIS' : realDistance > 25 ? 'TEST SOL · APROPIE-TE DE MONEDĂ' : 'TEST: FIXARE PE SOL'}
+          </button>
           {!orientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}
           {!coinError && geoCoins.length === 0 && <p>No active coins available.</p>}
@@ -918,6 +944,14 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
       </div>
 
+      {groundTest && <GroundARTest
+        getAlignment={() => {
+          if (!orientation || !userCoords || !activeCoin || realDistance > 25 ||
+              (userCoords.accuracy ?? Infinity) > 10 || Date.now() - gpsTimestamp > 15000 || Date.now() - orientationAt.current > 3000) return null;
+          return { user: { ...userCoords }, coin: { latitude: activeCoin.latitude, longitude: activeCoin.longitude }, facing: orientation.clone() };
+        }}
+        onClose={() => { setGroundTest(false); void startCameraStream(); }}
+      />}
       {/* MODALS */}
       {userCoords && <RadarMapOverlay
         isOpen={isRadarOpen}

@@ -11,6 +11,11 @@ export interface TelegramUser {
 }
 
 export interface TelegramWebApp {
+  DeviceOrientation?: {
+    isStarted: boolean; absolute: boolean; alpha: number; beta: number; gamma: number;
+    start: (params: { refresh_rate: number; need_absolute: boolean }, callback?: (started: boolean) => void) => void;
+    stop: () => void;
+  };
   version?: string;
   isVersionAtLeast?: (version: string) => boolean;
   ready: () => void;
