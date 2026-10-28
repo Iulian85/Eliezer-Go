@@ -7,7 +7,6 @@ import { Coin3D } from './Coin3D';
 import { GeoCamera } from './GeoCamera';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { toWorldPosition } from '../utils/arSpatial';
-import { CalibrationState, changeCalibration, calibrationMotion } from '../utils/coinCalibration';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -203,8 +202,9 @@ export const ARView: React.FC<ARViewProps> = ({
 
   // Active coins loaded strictly from the API (real GPS coordinates)
   const [geoCoins, setGeoCoins] = useState<GeoCoin[]>([]);
-  const [calibration, setCalibration] = useState<CalibrationState>({ height: 1.4, speed: .5, running: false, distance: 0, updatedAt: gameTime(), heading: 0 });
-  const adjustCalibration = (patch: Partial<CalibrationState>) => setCalibration(current => changeCalibration(current, patch, gameTime()));
+  const testCollected = useRef(new Set<string>());
+  const collectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (collectionTimer.current) clearTimeout(collectionTimer.current); }, []);
   const [activeCoinId, setActiveCoinId] = useState('');
   const [sensorYaw, setSensorYaw] = useState(0);
   const yaw = sensorYaw;
@@ -241,7 +241,7 @@ export const ARView: React.FC<ARViewProps> = ({
           value: drop.value,
           type: drop.coin_type,
           sponsorName: drop.sponsor_name,
-          collected: drop.status === 'collected',
+          collected: drop.status === 'collected' || testCollected.current.has(drop.id),
           distance: dist,
           bearing: bearing,
           motion: drop.motion,
@@ -279,14 +279,7 @@ export const ARView: React.FC<ARViewProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const displayedCoins = geoCoins.map(coin => {
-    if (!coin.calibration) return coin;
-    const motion = calibrationMotion(coin, calibration, gameTime());
-    const point = movingCoinPosition(motion, gameTime());
-    return { ...coin, ...point, motion,
-      distance: userCoords ? getDistanceMeters(userCoords.latitude, userCoords.longitude, point.latitude, point.longitude) : 999999,
-      bearing: userCoords ? getBearingDegrees(userCoords.latitude, userCoords.longitude, point.latitude, point.longitude) : 0 };
-  });
+  const displayedCoins = geoCoins;
   // Get active targeted coin object (must be uncollected and not despawned)
   const activeCoin =
     displayedCoins.find((c) => c.id === activeCoinId && !c.collected && !c.despawned) ||
@@ -312,7 +305,7 @@ export const ARView: React.FC<ARViewProps> = ({
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
   // Can collect ONLY when within 5 meters of the Service drop coordinates
-  const canCollect = Boolean(!activeCoin?.calibration && isCoinInARRange && realDistance <= 5.0 && (userCoords?.accuracy ?? Infinity) <= 10);
+  const canCollect = Boolean(isCoinInARRange && realDistance <= 5.0 && (userCoords?.accuracy ?? Infinity) <= 10);
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -614,7 +607,8 @@ export const ARView: React.FC<ARViewProps> = ({
 
     collectingRef.current = true;
     setIsCollecting(true);
-    const saved = await markCoinCollectedInService(activeCoin.id);
+    const isTestCollection = activeCoin.calibration === true;
+    const saved = isTestCollection || await markCoinCollectedInService(activeCoin.id);
     if (!saved) {
       setCoinError('Colectarea cu salvare în cont nu este încă activată.');
       collectingRef.current = false;
@@ -635,9 +629,9 @@ export const ARView: React.FC<ARViewProps> = ({
       colors: ['#fbbf24', '#f59e0b', '#38bdf8', '#ffffff'],
     });
 
-    setSuccessMessage(`+1 ${activeCoin.name} Collected! (+${activeCoin.value} PTS)`);
+    if (!isTestCollection) setSuccessMessage(`+1 ${activeCoin.name} Collected! (+${activeCoin.value} PTS)`);
 
-    onCoinCollected({
+    if (!isTestCollection) onCoinCollected({
       id: activeCoin.id,
       name: activeCoin.name,
       value: activeCoin.value,
@@ -649,11 +643,9 @@ export const ARView: React.FC<ARViewProps> = ({
       sponsorName: activeCoin.sponsorName,
     });
 
-    setGeoCoins((prev) =>
-      prev.map((c) => (c.id === activeCoin.id ? { ...c, collected: true } : c))
-    );
-
-    setTimeout(() => {
+    collectionTimer.current = setTimeout(() => {
+      if (isTestCollection) testCollected.current.add(activeCoin.id);
+      setGeoCoins(coins => coins.map(coin => coin.id === activeCoin.id ? { ...coin, collected: true } : coin));
       setGeoCoins((currentCoins) => {
         const remaining = currentCoins.filter(
           (c) => !c.collected && !c.despawned && c.id !== activeCoin.id
@@ -706,7 +698,7 @@ export const ARView: React.FC<ARViewProps> = ({
         <Canvas camera={{ position: [0, 1.6, 0], fov: 65, near: .05, far: 500 }} gl={{ alpha: true, antialias: true }}>
           {originRef.current && visualCoords && orientation && <GeoCamera origin={originRef.current} user={visualCoords} orientation={orientation} />}
           <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
-          {isCoinInARRange && activeCoin && originRef.current && <RoamingCoin coin={activeCoin} height={activeCoin.calibration ? calibration.height : 1.4} origin={originRef.current} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
+          {isCoinInARRange && activeCoin && originRef.current && <RoamingCoin key={activeCoin.id} coin={activeCoin} height={1.4} origin={originRef.current} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
         </Canvas>
       </div>}
 
@@ -825,38 +817,9 @@ export const ARView: React.FC<ARViewProps> = ({
 
         {/* Middle screen area left clean and unobstructed */}
 
-        {/* TAP TO COLLECT Floating Action Button (Appears ONLY when player is within 5m of the Service coin) */}
-        {canCollect && (
-          <div className="w-full flex justify-center pb-2 pointer-events-auto animate-bounce">
-            <button
-              onClick={collectCoin}
-              className="flex items-center gap-3 px-8 py-3.5 rounded-full bg-[#041224]/95 backdrop-blur-md border-2 border-cyan-400 text-cyan-300 shadow-[0_0_35px_rgba(0,240,255,0.7)] active:scale-95 transition-all cursor-pointer hover:bg-cyan-950/90"
-            >
-              <span className="text-cyan-400 font-black text-base tracking-widest">»»</span>
-              <span className="text-xs font-black font-mono tracking-[0.2em] text-white uppercase drop-shadow-[0_0_12px_rgba(0,240,255,0.9)]">
-                TAP TO COLLECT
-              </span>
-              <span className="text-cyan-400 font-black text-base tracking-widest">««</span>
-            </button>
-          </div>
-        )}
-
         {/* BOTTOM DOCKED HUD (Docked at bottom so middle 3D coin area is 100% clear & unobstructed) */}
         <div className="px-3.5 pt-3 pb-[max(1rem,calc(var(--sab)+0.5rem))] flex flex-col gap-2 pointer-events-auto bg-gradient-to-t from-black/95 via-black/85 to-transparent">
-          {activeCoin?.calibration && <details className="rounded-xl bg-slate-950/95 border border-cyan-600 p-3 text-white text-xs" open>
-            <summary className="font-bold cursor-pointer">Reglaje locale · fără colectare</summary>
-            <label className="block mt-2">Înălțimea centrului: {calibration.height.toFixed(2)} m
-              <input aria-label="Înălțimea monedei" className="w-full" type="range" min="0.2" max="3" step="0.05" value={calibration.height} onChange={e => adjustCalibration({ height: Number(e.target.value) })} />
-            </label>
-            <label className="block">Viteza: {calibration.speed.toFixed(1)} m/s
-              <input aria-label="Viteza monedei" className="w-full" type="range" min="0" max="3" step="0.1" value={calibration.speed} onChange={e => adjustCalibration({ speed: Number(e.target.value) })} />
-            </label>
-            <div className="flex gap-2 mt-2">
-              <button className="rounded-lg bg-cyan-800 px-3 py-2" onClick={() => adjustCalibration({ running: !calibration.running, ...(calibration.distance === 0 && !calibration.running ? { heading: yaw } : {}) })}>{calibration.running ? 'Pauză' : 'Pornește testul'}</button>
-              <button className="rounded-lg bg-slate-700 px-3 py-2" onClick={() => adjustCalibration({ running: false, distance: 0 })}>Înapoi acasă</button>
-            </div>
-            <p className="mt-2 text-slate-300">Nivel virtual; podeaua nu este detectată. Reglajele afectează doar acest telefon.</p>
-          </details>}
+
           {/* Row 1: Compass Telemetry & Radar Map Button */}
           <div className="flex items-center justify-between w-full gap-2">
             {/* Compass & Proximity Pill */}
