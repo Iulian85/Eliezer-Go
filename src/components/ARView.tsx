@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Quaternion, Vector3 } from 'three';
 import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
-import { GroundARTest } from './GroundARTest';
-import { loadTrackingEngine } from '../utils/trackingEngine';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Group } from 'three';
+import { Coin3D } from './Coin3D';
+import { GeoCamera } from './GeoCamera';
+import { movingCoinPosition, gameTime } from '../utils/coinMotion';
+import { toWorldPosition } from '../utils/arSpatial';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -77,11 +81,7 @@ export const ARView: React.FC<ARViewProps> = ({
   initialStream,
   campaigns,
 }) => {
-  const [groundTest, setGroundTest] = useState(false);
-  const [loadingGround, setLoadingGround] = useState(false);
-  const [groundError, setGroundError] = useState<string | null>(null);
-  const groundRequest = useRef(0);
-  useEffect(() => () => { groundRequest.current += 1; }, []);
+
   const nativeOrientationAt = useRef(0);
   const orientationAt = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -241,7 +241,10 @@ export const ARView: React.FC<ARViewProps> = ({
           collected: drop.status === 'collected',
           distance: dist,
           bearing: bearing,
-          despawned: false,
+          motion: drop.motion,
+          expiresAt: drop.motion?.endsAt,
+          maxDurability: drop.motion ? (drop.motion.endsAt - drop.motion.startsAt) / 1000 : undefined,
+          despawned: Boolean(drop.motion && gameTime() >= drop.motion.endsAt),
           originLat: drop.latitude,
           originLon: drop.longitude,
         };
@@ -257,6 +260,21 @@ export const ARView: React.FC<ARViewProps> = ({
     return () => { active = false; clearInterval(timer); };
   }, [cityName]);
 
+  // Advance routes even when the hunter is stationary. Polling never restarts a route.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = gameTime(), user = positionRef.current;
+      setGeoCoins(coins => coins.map(coin => {
+        if (!coin.motion || coin.collected) return coin;
+        const point = movingCoinPosition(coin.motion, now);
+        return { ...coin, ...point, despawned: now >= coin.motion.endsAt,
+          distance: user ? getDistanceMeters(user.latitude, user.longitude, point.latitude, point.longitude) : 999999,
+          bearing: user ? getBearingDegrees(user.latitude, user.longitude, point.latitude, point.longitude) : 0 };
+      }));
+    }, 250);
+    return () => clearInterval(timer);
+  }, []);
+
   // Get active targeted coin object (must be uncollected and not despawned)
   const activeCoin =
     geoCoins.find((c) => c.id === activeCoinId && !c.collected && !c.despawned) ||
@@ -269,7 +287,7 @@ export const ARView: React.FC<ARViewProps> = ({
   const hasActiveDurability = Boolean(activeCoin?.maxDurability && activeCoin?.expiresAt);
 
   // Real GPS Distance and Location Checks
-  // Coin ONLY manifests in AR if the user is physically present at the drop location (<= 25 meters)
+  // Show nearby moving coins; their apparent size follows their actual distance.
   const realDistance = activeCoin && userCoords ? activeCoin.distance : 999999;
   const isCoinInARRange = Boolean(
     activeCoin &&
@@ -278,7 +296,7 @@ export const ARView: React.FC<ARViewProps> = ({
     userCoords &&
     visualCoords && (userCoords.accuracy ?? Infinity) <= 25 &&
     orientation && Date.now() - gpsTimestamp < 15000 &&
-    realDistance <= 25.0
+    realDistance <= 150.0
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
   // Can collect ONLY when within 5 meters of the Service drop coordinates
@@ -507,7 +525,7 @@ export const ARView: React.FC<ARViewProps> = ({
   // Durability Countdown watchdog
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = Date.now();
+      const now = gameTime();
       let newlyDespawnedActive = false;
       let despawnedActiveName = '';
       let despawnedActiveVal = 0;
@@ -572,7 +590,9 @@ export const ARView: React.FC<ARViewProps> = ({
   const collectCoin = useCallback(async () => {
     if (collectingRef.current || isCollecting || !activeCoin || activeCoin.collected || Date.now() - gpsTimestamp >= 15000) return;
 
-    if (!canCollect) {
+    const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
+    const currentDistance = userCoords ? getDistanceMeters(userCoords.latitude, userCoords.longitude, point.latitude, point.longitude) : Infinity;
+    if (!canCollect || currentDistance > 5 || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
         playSound.buttonClick();
@@ -584,7 +604,7 @@ export const ARView: React.FC<ARViewProps> = ({
     setIsCollecting(true);
     const saved = await markCoinCollectedInService(activeCoin.id);
     if (!saved) {
-      setCoinError('Collection is unavailable until account verification is enabled.');
+      setCoinError('Colectarea cu salvare în cont nu este încă activată.');
       collectingRef.current = false;
       setIsCollecting(false);
       return;
@@ -670,7 +690,13 @@ export const ARView: React.FC<ARViewProps> = ({
         className="opacity-100"
       />
 
-      {/* GPS is navigation only. Physical coin rendering belongs to the tracked camera session. */}
+      {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
+        <Canvas camera={{ position: [0, 1.6, 0], fov: 65, near: .05, far: 500 }} gl={{ alpha: true, antialias: true }}>
+          {originRef.current && visualCoords && orientation && <GeoCamera origin={originRef.current} user={visualCoords} orientation={orientation} />}
+          <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
+          {isCoinInARRange && activeCoin && originRef.current && <RoamingCoin coin={activeCoin} origin={originRef.current} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
+        </Canvas>
+      </div>}
 
       {/* 3. AR HUD CONTROLS OVERLAY (Radar, Weather, Compass & Stats - NO middle distance message) */}
       <div style={{ position: 'relative', zIndex: 10 }} className="flex-1 flex flex-col justify-between pointer-events-none">
@@ -760,28 +786,6 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
 
         <div className="px-4 text-center text-xs text-white pointer-events-auto">
-          <button disabled={loadingGround || !orientation || !userCoords || realDistance > 25 || (userCoords.accuracy ?? Infinity) > 10}
-            onClick={async () => {
-              const request = ++groundRequest.current;
-              setGroundError(null); setLoadingGround(true);
-              try {
-                // Keep the working camera visible during the engine/WASM download.
-                await loadTrackingEngine();
-                if (request !== groundRequest.current) return;
-                streamRef.current?.getTracks().forEach(track => track.stop());
-                streamRef.current = null;
-                if (videoRef.current) videoRef.current.srcObject = null;
-                setGroundTest(true);
-              } catch {
-                if (request === groundRequest.current) setGroundError('Motorul AR nu s-a încărcat. Camera obișnuită rămâne activă.');
-              } finally {
-                if (request === groundRequest.current) setLoadingGround(false);
-              }
-            }} className="bg-cyan-950 border border-cyan-500 text-cyan-200 rounded-xl px-4 py-2 disabled:opacity-40">
-            {loadingGround ? 'Se pregătește AR… camera rămâne activă' : !orientation ? 'FIXARE · AȘTEAPTĂ BUSOLA' : !userCoords || (userCoords.accuracy ?? Infinity) > 10
-              ? 'FIXARE · AȘTEAPTĂ GPS PRECIS' : realDistance > 25 ? 'FIXARE · APROPIE-TE DE MONEDĂ' : 'FIXEAZĂ HOLOGRAMA PE SOL'}
-          </button>
-          {groundError && <p role="alert" className="bg-slate-900 text-amber-300 p-3 rounded-xl">{groundError}</p>}
           {!orientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}
           {!coinError && geoCoins.length === 0 && <p>No active coins available.</p>}
@@ -924,14 +928,6 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
       </div>
 
-      {groundTest && <GroundARTest
-        getAlignment={() => {
-          if (!orientation || !userCoords || !activeCoin || realDistance > 25 ||
-              (userCoords.accuracy ?? Infinity) > 10 || Date.now() - gpsTimestamp > 15000 || Date.now() - orientationAt.current > 3000) return null;
-          return { user: { ...userCoords }, coin: { latitude: activeCoin.latitude, longitude: activeCoin.longitude }, facing: orientation.clone() };
-        }}
-        onClose={(error?: string) => { setGroundTest(false); setGroundError(error ?? null); void startCameraStream(); }}
-      />}
       {/* MODALS */}
       {userCoords && <RadarMapOverlay
         isOpen={isRadarOpen}
@@ -967,3 +963,17 @@ export const ARView: React.FC<ARViewProps> = ({
     </div>
   );
 };
+
+function RoamingCoin({ coin, origin, canCollect, isCollecting, onClick }: {
+  coin: GeoCoin; origin: GeoCoordinate; canCollect: boolean; isCollecting: boolean; onClick: () => void;
+}) {
+  const group = useRef<Group>(null);
+  useFrame(() => {
+    if (!group.current) return;
+    const now = gameTime();
+    const point = coin.motion ? movingCoinPosition(coin.motion, now) : coin;
+    group.current.position.set(...toWorldPosition(point, origin, 1.4));
+    group.current.visible = !coin.motion || now < coin.motion.endsAt;
+  });
+  return <group ref={group}><Coin3D scale={.52} canCollect={canCollect} isCollecting={isCollecting} onClick={onClick} /></group>;
+}

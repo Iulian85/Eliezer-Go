@@ -1,3 +1,5 @@
+import { CoinMotion, validCoinMotion, synchronizeGameClock } from '../utils/coinMotion';
+
 export interface ServiceHunterProfile {
   id?: string;
   telegram_id: number;
@@ -25,6 +27,7 @@ export interface ServiceCollectedCoin {
 }
 
 export interface ServiceCoinDrop {
+  motion?: CoinMotion;
   id: string;
   name: string;
   city_name: string;
@@ -56,13 +59,17 @@ export async function fetchAdminMetricsFromService() {
   return { totalHunters: 0, totalCoinsCollected: 0, totalElzrBalance: 0, isConnected: false };
 }
 export async function fetchCoinDropsFromService(_city = ''): Promise<ServiceCoinDrop[]> {
+  const requested = Date.now();
   const response = await fetch('/api/coins', { signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error('Coins are temporarily unavailable');
+  const serverTime = response.headers.get('X-Game-Time');
+  if (serverTime) synchronizeGameClock(Number(serverTime), requested, Date.now());
   const drops = await response.json();
   if (!Array.isArray(drops)) throw new Error('Invalid response');
   return drops.filter(d => typeof d.id === 'string' && typeof d.name === 'string' &&
     Number.isFinite(d.latitude) && Math.abs(d.latitude) <= 90 &&
-    Number.isFinite(d.longitude) && Math.abs(d.longitude) <= 180 && d.status === 'active');
+    Number.isFinite(d.longitude) && Math.abs(d.longitude) <= 180 && d.status === 'active' &&
+    (!d.motion || validCoinMotion(d.motion)));
 }
 export async function saveAdminCoinDropToService(_drop: Omit<ServiceCoinDrop, 'id' | 'created_at'>): Promise<ServiceCoinDrop> {
   throw new Error('Administrator authorization required');

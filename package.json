@@ -8,12 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
-    "prebuild": "node scripts/prepare-ar.mjs",
-    "predev": "node scripts/prepare-ar.mjs"
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@8thwall/engine-binary": "1.0.0",
     "@react-three/fiber": "^9.8.2",
     "@tailwindcss/vite": "^4.3.3",
     "@tonconnect/ui-react": "^5.0.1",

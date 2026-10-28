@@ -1,7 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Hologram3D } from './Hologram3D';
 import {
   createCoinFrontTexture,
   createCoinBackTexture,
@@ -99,7 +98,6 @@ export const Coin3D: React.FC<Coin3DProps> = ({
         onClick?.();
       }}
     >
-      <Hologram3D />
       <group ref={groupRef}>
       {/* Generous touch/click collider for mobile tapping in AR */}
       <mesh

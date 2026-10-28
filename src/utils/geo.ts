@@ -4,6 +4,7 @@
  */
 
 import { METROPOLIS_LOCATIONS } from '../constants';
+import { CoinMotion, gameTime } from './coinMotion';
 
 export interface GeoCoordinate {
   latitude: number;
@@ -46,6 +47,7 @@ export async function reverseGeocodeUserLocation(
 }
 
 export interface GeoCoin {
+  motion?: CoinMotion;
   id: string;
   name: string;
   landmark?: string;
@@ -124,7 +126,7 @@ export function getCompassDirection(bearing: number): string {
 /**
  * Calculates remaining durability seconds and percentage for a coin
  */
-export function getRemainingDurability(coin: { maxDurability?: number; expiresAt?: number }): {
+export function getRemainingDurability(coin: { maxDurability?: number; expiresAt?: number; motion?: CoinMotion }): {
   remainingSeconds: number;
   percent: number;
   isCritical: boolean;
@@ -133,7 +135,7 @@ export function getRemainingDurability(coin: { maxDurability?: number; expiresAt
   if (!coin.maxDurability || !coin.expiresAt) {
     return { remainingSeconds: Infinity, percent: 100, isCritical: false, isExpired: false };
   }
-  const now = Date.now();
+  const now = coin.motion ? gameTime() : Date.now();
   const remainingMs = Math.max(0, coin.expiresAt - now);
   const remainingSeconds = Math.ceil(remainingMs / 1000);
   const percent = Math.max(0, Math.min(100, Math.round((remainingMs / (coin.maxDurability * 1000)) * 100)));
