@@ -15,12 +15,34 @@ export function formatGpsCoordinates(lat: number, lon: number): string {
   return `${Math.abs(lat).toFixed(6)}° ${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(6)}° ${lon < 0 ? 'W' : 'E'}`;
 }
 
-// Local fallback: coordinates remain on the device.
+const cityCache = new Map<string, { value: string; expires: number }>();
+const cityRequests = new Map<string, Promise<string>>();
 export async function reverseGeocodeUserLocation(
   lat: number,
   lon: number
 ): Promise<{ city: string; region: string; fullLocation: string }> {
-  return { city: '', region: '', fullLocation: formatGpsCoordinates(lat, lon) };
+  const latitude = Number(lat.toFixed(2)), longitude = Number(lon.toFixed(2));
+  const key = `${latitude},${longitude}`;
+  const cached = cityCache.get(key);
+  let city = cached && cached.expires > Date.now() ? cached.value : '';
+  if (!city) {
+    if (!cityRequests.has(key)) {
+      cityRequests.set(key, (async () => {
+        const response = await fetch('/api/location/city', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ latitude, longitude }), signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok) throw new Error('City unavailable');
+        const data = await response.json();
+        if (typeof data.city !== 'string' || !data.city.trim()) throw new Error('City unavailable');
+        if (cityCache.size >= 100) cityCache.delete(cityCache.keys().next().value!);
+        cityCache.set(key, { value: data.city, expires: Date.now() + 3600000 });
+        return data.city as string;
+      })());
+    }
+    try { city = await cityRequests.get(key)!; } finally { cityRequests.delete(key); }
+  }
+  return { city, region: '', fullLocation: city };
 }
 
 export interface GeoCoin {

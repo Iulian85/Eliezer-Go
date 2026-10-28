@@ -3,7 +3,8 @@ import { UserState } from '../types';
 import { Zap, Globe2, Users, Radar, Sparkles, Navigation, RefreshCw, Share2, Trophy } from 'lucide-react';
 import { triggerHaptic } from '../utils/telegram';
 import { DailyStreakCard } from './DailyStreakCard';
-import { formatGpsCoordinates, GeoCoordinate } from '../utils/geo';
+import { GeoCoordinate } from '../utils/geo';
+import { useCity } from '../utils/useCity';
 
 interface HomeTabProps {
   userState: UserState;
@@ -28,6 +29,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [coordinates, setCoordinates] = useState<GeoCoordinate | null>(null);
   const [gpsError, setGpsError] = useState('');
   const [gpsRequest, setGpsRequest] = useState(0);
+  const { city, loading: cityLoading } = useCity(coordinates, gpsRequest);
+  useEffect(() => { if (city) onUpdateCity(city); }, [city]);
 
   const detectLocation = () => {
     triggerHaptic('medium');
@@ -137,12 +140,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         <div className="flex items-start justify-between">
           <div>
             <div className="text-xs font-bold text-cyan-400 tracking-wider uppercase mb-1 font-mono">
-              YOUR GPS LOCATION
+              YOUR CITY
             </div>
             <div className="text-base font-bold text-white tracking-tight my-1 font-mono break-words">
-              {coordinates ? formatGpsCoordinates(coordinates.latitude, coordinates.longitude) : 'Waiting for GPS…'}
+              {city || (!coordinates ? 'Waiting for GPS…' : cityLoading ? 'Finding city…' : 'City unavailable')}
             </div>
-            {coordinates && <p className="text-xs text-slate-400">Accuracy: ±{Math.round(coordinates.accuracy ?? 0)} m{gpsError ? ' · Last known position' : ''}</p>}
+            {city && <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="text-[9px] text-slate-500">© OpenStreetMap contributors</a>}
             {gpsError && <p role="status" className="text-xs text-amber-300 mt-2">{gpsError}</p>}
           </div>
           <button

@@ -47,9 +47,8 @@ import {
   getCompassDirection,
   getRemainingDurability,
   formatCountdown,
-  reverseGeocodeUserLocation,
-  formatGpsCoordinates,
 } from '../utils/geo';
+import { useCity } from '../utils/useCity';
 import { RadarMapOverlay } from './RadarMapOverlay';
 import { CoinSkinId, CameraFilterId, COIN_SKINS, CAMERA_FILTERS } from '../utils/skins';
 import { CoinSkinsMenu } from './CoinSkinsMenu';
@@ -148,22 +147,8 @@ export const ARView: React.FC<ARViewProps> = ({
   // User Geolocation Coordinates - dynamically acquired from device GPS
   const [userCoords, setUserCoords] = useState<GeoCoordinate | null>(null);
   const [, setIsGpsReady] = useState<boolean>(false);
-  const [liveLocationName, setLiveLocationName] = useState<string>('Waiting for GPS…');
-
-  // Reverse geocode real user GPS coordinates to display exact city/region
-  useEffect(() => {
-    if (!userCoords) return;
-    setLiveLocationName(formatGpsCoordinates(userCoords.latitude, userCoords.longitude));
-    let active = true;
-    reverseGeocodeUserLocation(userCoords.latitude, userCoords.longitude).then((res) => {
-      if (active && res.city && res.fullLocation) {
-        setLiveLocationName(res.fullLocation);
-      }
-    }).catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [userCoords?.latitude, userCoords?.longitude]);
+  const { city: liveCity, loading: cityLoading } = useCity(userCoords);
+  const liveLocationName = liveCity || (!userCoords ? 'Waiting for GPS…' : cityLoading ? 'Finding city…' : 'City unavailable');
 
   // Fetch real-world weather from Open-Meteo
   useEffect(() => {
@@ -962,7 +947,7 @@ export const ARView: React.FC<ARViewProps> = ({
               <MapPin className="w-3.5 h-3.5 text-rose-400 fill-rose-400/20 shrink-0" />
               <span className="text-[11px] font-mono font-bold text-white tracking-wide">
                 {liveLocationName}
-                {userCoords && <span className="block text-[10px] font-normal text-slate-300">Accuracy: ±{Math.round(userCoords.accuracy ?? 0)} m{trackingError?.startsWith('GPS:') ? ' · Last known position' : ''}</span>}
+                {liveCity && <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="block text-[8px] font-normal text-slate-400">© OpenStreetMap contributors</a>}
               </span>
             </div>
 
