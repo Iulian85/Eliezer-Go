@@ -1,0 +1,558 @@
+/**
+ * ELZR Hunter Global Constants & Metropolis Coin Dropzones
+ * Real-world coordinates and metadata for ELZR coins across major global cities.
+ */
+
+export interface MetropolisLocation {
+  id: string;
+  cityName: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  coins: MetropolisCoinDefinition[];
+}
+
+export interface MetropolisCoinDefinition {
+  id: string;
+  name: string;
+  landmark: string;
+  latitude: number;
+  longitude: number;
+  value: number;
+  type: 'standard' | 'rare' | 'merchant';
+  sponsorName?: string;
+  wanderSpeedMps?: number; // meters per second wandering speed
+  wanderRadiusMeters?: number; // roaming boundary radius
+}
+
+export const METROPOLIS_LOCATIONS: MetropolisLocation[] = [
+  // 1. GERSTHOFEN & AUGSBURG, BAVARIA (Home Base)
+  {
+    id: 'gersthofen',
+    cityName: 'Gersthofen',
+    country: 'Germany (Bavaria)',
+    latitude: 48.4239,
+    longitude: 10.8738,
+    description: 'Bavarian hunter hub with urban tech drops and riverside nodes.',
+    coins: [
+      {
+        id: 'elzr_gerst_rathaus',
+        name: 'Rathausplatz Prime ELZR',
+        landmark: 'Gersthofen Rathausplatz',
+        latitude: 48.4245,
+        longitude: 10.8742,
+        value: 150,
+        type: 'standard',
+        wanderSpeedMps: 1.2,
+        wanderRadiusMeters: 40,
+      },
+      {
+        id: 'elzr_gerst_ballon',
+        name: 'Ballonmuseum Sky Drop',
+        landmark: 'Ballonmuseum Gersthofen',
+        latitude: 48.4262,
+        longitude: 10.8715,
+        value: 300,
+        type: 'rare',
+        sponsorName: 'AeroTech Bavaria',
+        wanderSpeedMps: 1.8,
+        wanderRadiusMeters: 60,
+      },
+      {
+        id: 'elzr_gerst_bahnhof',
+        name: 'Transit Express Bounty',
+        landmark: 'Gersthofen Bahnhof',
+        latitude: 48.4198,
+        longitude: 10.8805,
+        value: 200,
+        type: 'standard',
+        wanderSpeedMps: 1.5,
+        wanderRadiusMeters: 50,
+      },
+      {
+        id: 'elzr_gerst_lech',
+        name: 'Lech River Hydro Cache',
+        landmark: 'Lech Riverside Trail',
+        latitude: 48.4285,
+        longitude: 10.8845,
+        value: 450,
+        type: 'rare',
+        sponsorName: 'HydroEnergy',
+        wanderSpeedMps: 2.2,
+        wanderRadiusMeters: 80,
+      },
+      {
+        id: 'elzr_gerst_citycenter',
+        name: 'City Center Merchant Drop',
+        landmark: 'City Center Plaza',
+        latitude: 48.4228,
+        longitude: 10.8755,
+        value: 500,
+        type: 'merchant',
+        sponsorName: 'CyberBrew Augsburg',
+        wanderSpeedMps: 1.0,
+        wanderRadiusMeters: 30,
+      },
+      {
+        id: 'elzr_gerst_stadpark',
+        name: 'Stadtpark Solar Bloom',
+        landmark: 'Gersthofen Stadtpark',
+        latitude: 48.4215,
+        longitude: 10.8695,
+        value: 250,
+        type: 'standard',
+        wanderSpeedMps: 1.4,
+        wanderRadiusMeters: 45,
+      },
+    ],
+  },
+
+  // 2. NEW YORK CITY, USA
+  {
+    id: 'new_york',
+    cityName: 'New York',
+    country: 'United States',
+    latitude: 40.7128,
+    longitude: -74.006,
+    description: 'The global financial epicenter with dense cryptocurrency dropzones.',
+    coins: [
+      {
+        id: 'elzr_nyc_times_sq',
+        name: 'Broadway Neon Titan',
+        landmark: 'Times Square',
+        latitude: 40.758,
+        longitude: -73.9855,
+        value: 500,
+        type: 'rare',
+        sponsorName: 'Nasdaq Crypto',
+        wanderSpeedMps: 2.5,
+        wanderRadiusMeters: 80,
+      },
+      {
+        id: 'elzr_nyc_wall_st',
+        name: 'Bull Market Gold Vault',
+        landmark: 'Wall Street Charging Bull',
+        latitude: 40.7056,
+        longitude: -74.0134,
+        value: 750,
+        type: 'rare',
+        sponsorName: 'WallSt Capital',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 60,
+      },
+      {
+        id: 'elzr_nyc_central_park',
+        name: 'Central Park Oasis Drop',
+        landmark: 'Bethesda Terrace, Central Park',
+        latitude: 40.7738,
+        longitude: -73.9708,
+        value: 250,
+        type: 'standard',
+        wanderSpeedMps: 3.0,
+        wanderRadiusMeters: 100,
+      },
+      {
+        id: 'elzr_nyc_empire_state',
+        name: 'Skyline Zenith ELZR',
+        landmark: 'Empire State Building',
+        latitude: 40.7484,
+        longitude: -73.9857,
+        value: 400,
+        type: 'merchant',
+        sponsorName: 'SkyDeck NYC',
+        wanderSpeedMps: 1.5,
+        wanderRadiusMeters: 40,
+      },
+    ],
+  },
+
+  // 3. TOKYO, JAPAN
+  {
+    id: 'tokyo',
+    cityName: 'Tokyo',
+    country: 'Japan',
+    latitude: 35.6762,
+    longitude: 139.6503,
+    description: 'High-tech cyberpunk streets with ultra-fast roaming tokens.',
+    coins: [
+      {
+        id: 'elzr_tokyo_shibuya',
+        name: 'Shibuya Crossing Vortex',
+        landmark: 'Shibuya Scramble Crossing',
+        latitude: 35.6595,
+        longitude: 139.7004,
+        value: 600,
+        type: 'rare',
+        sponsorName: 'NeoShibuya',
+        wanderSpeedMps: 3.5,
+        wanderRadiusMeters: 90,
+      },
+      {
+        id: 'elzr_tokyo_akiba',
+        name: 'Akihabara Circuit Node',
+        landmark: 'Akihabara Electric Town',
+        latitude: 35.6983,
+        longitude: 139.773,
+        value: 450,
+        type: 'merchant',
+        sponsorName: 'AnimeX Global',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 50,
+      },
+      {
+        id: 'elzr_tokyo_tower',
+        name: 'Tokyo Tower Solar Flare',
+        landmark: 'Tokyo Tower Observatory',
+        latitude: 35.6586,
+        longitude: 139.7454,
+        value: 500,
+        type: 'rare',
+        sponsorName: 'TokyoSky',
+        wanderSpeedMps: 2.2,
+        wanderRadiusMeters: 70,
+      },
+      {
+        id: 'elzr_tokyo_sensoji',
+        name: 'Asakusa Ancestral Treasure',
+        landmark: 'Sensō-ji Temple',
+        latitude: 35.7148,
+        longitude: 139.7967,
+        value: 300,
+        type: 'standard',
+        wanderSpeedMps: 1.5,
+        wanderRadiusMeters: 60,
+      },
+    ],
+  },
+
+  // 4. LONDON, UNITED KINGDOM
+  {
+    id: 'london',
+    cityName: 'London',
+    country: 'United Kingdom',
+    latitude: 51.5074,
+    longitude: -0.1278,
+    description: 'Historic landmarks and Thames waterfront corridors.',
+    coins: [
+      {
+        id: 'elzr_london_bigben',
+        name: 'Big Ben Chrono Cache',
+        landmark: 'Palace of Westminster / Big Ben',
+        latitude: 51.5007,
+        longitude: -0.1246,
+        value: 500,
+        type: 'rare',
+        sponsorName: 'ChronoTime London',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 75,
+      },
+      {
+        id: 'elzr_london_tower_bridge',
+        name: 'Thames Royal Gate',
+        landmark: 'Tower Bridge',
+        latitude: 51.5055,
+        longitude: -0.0754,
+        value: 400,
+        type: 'merchant',
+        sponsorName: 'Crown Merchant Hub',
+        wanderSpeedMps: 2.8,
+        wanderRadiusMeters: 80,
+      },
+      {
+        id: 'elzr_london_piccadilly',
+        name: 'Piccadilly Lights Surge',
+        landmark: 'Piccadilly Circus',
+        latitude: 51.51,
+        longitude: -0.1345,
+        value: 350,
+        type: 'standard',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 55,
+      },
+    ],
+  },
+
+  // 5. PARIS, FRANCE
+  {
+    id: 'paris',
+    cityName: 'Paris',
+    country: 'France',
+    latitude: 48.8566,
+    longitude: 2.3522,
+    description: 'City of light with prestigious artistic reward drops.',
+    coins: [
+      {
+        id: 'elzr_paris_eiffel',
+        name: 'Eiffel Zenith Flame',
+        landmark: 'Champ de Mars / Eiffel Tower',
+        latitude: 48.8584,
+        longitude: 2.2945,
+        value: 650,
+        type: 'rare',
+        sponsorName: 'Lumiere de Paris',
+        wanderSpeedMps: 2.6,
+        wanderRadiusMeters: 90,
+      },
+      {
+        id: 'elzr_paris_louvre',
+        name: 'Louvre Golden Pyramid',
+        landmark: 'Louvre Courtyard',
+        latitude: 48.8606,
+        longitude: 2.3376,
+        value: 450,
+        type: 'merchant',
+        sponsorName: 'Galerie Royale',
+        wanderSpeedMps: 1.8,
+        wanderRadiusMeters: 60,
+      },
+      {
+        id: 'elzr_paris_arcdetriomphe',
+        name: 'Champs-Élysées Victory Drop',
+        landmark: 'Arc de Triomphe',
+        latitude: 48.8738,
+        longitude: 2.295,
+        value: 350,
+        type: 'standard',
+        wanderSpeedMps: 2.2,
+        wanderRadiusMeters: 70,
+      },
+    ],
+  },
+
+  // 6. DUBAI, UNITED ARAB EMIRATES
+  {
+    id: 'dubai',
+    cityName: 'Dubai',
+    country: 'United Arab Emirates',
+    latitude: 25.2048,
+    longitude: 55.2708,
+    description: 'Ultramodern metropolis with high-value crypto bullion drops.',
+    coins: [
+      {
+        id: 'elzr_dubai_burj',
+        name: 'Burj Khalifa Sky Vault',
+        landmark: 'Burj Khalifa Plaza',
+        latitude: 25.1972,
+        longitude: 55.2744,
+        value: 1000,
+        type: 'rare',
+        sponsorName: 'Emirates Gold TON',
+        wanderSpeedMps: 3.0,
+        wanderRadiusMeters: 100,
+      },
+      {
+        id: 'elzr_dubai_future',
+        name: 'Museum of the Future Node',
+        landmark: 'Museum of the Future',
+        latitude: 25.2192,
+        longitude: 55.2819,
+        value: 600,
+        type: 'merchant',
+        sponsorName: 'FutureX Labs',
+        wanderSpeedMps: 2.4,
+        wanderRadiusMeters: 75,
+      },
+      {
+        id: 'elzr_dubai_marina',
+        name: 'Dubai Marina Yacht Drop',
+        landmark: 'Dubai Marina Walk',
+        latitude: 25.0805,
+        longitude: 55.1403,
+        value: 450,
+        type: 'standard',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 60,
+      },
+    ],
+  },
+
+  // 7. BERLIN, GERMANY
+  {
+    id: 'berlin',
+    cityName: 'Berlin',
+    country: 'Germany',
+    latitude: 52.52,
+    longitude: 13.405,
+    description: 'Techno and blockchain capital with underground & historic nodes.',
+    coins: [
+      {
+        id: 'elzr_berlin_brandenburg',
+        name: 'Brandenburg Freedom ELZR',
+        landmark: 'Brandenburger Tor',
+        latitude: 52.5163,
+        longitude: 13.3777,
+        value: 500,
+        type: 'rare',
+        sponsorName: 'BerlinTech',
+        wanderSpeedMps: 2.2,
+        wanderRadiusMeters: 80,
+      },
+      {
+        id: 'elzr_berlin_alexanderplatz',
+        name: 'Alex Fernsehturm Beacon',
+        landmark: 'Alexanderplatz TV Tower',
+        latitude: 52.5208,
+        longitude: 13.4094,
+        value: 400,
+        type: 'merchant',
+        sponsorName: 'ClubMate Labs',
+        wanderSpeedMps: 1.9,
+        wanderRadiusMeters: 65,
+      },
+      {
+        id: 'elzr_berlin_potsdamer',
+        name: 'Potsdamer Modern Cache',
+        landmark: 'Potsdamer Platz Sony Center',
+        latitude: 52.5096,
+        longitude: 13.3759,
+        value: 300,
+        type: 'standard',
+        wanderSpeedMps: 1.6,
+        wanderRadiusMeters: 50,
+      },
+    ],
+  },
+
+  // 8. BUCHAREST, ROMANIA
+  {
+    id: 'bucharest',
+    cityName: 'Bucharest',
+    country: 'Romania',
+    latitude: 44.4268,
+    longitude: 26.1025,
+    description: 'Dynamic Eastern European crypto hub with historic civic landmarks.',
+    coins: [
+      {
+        id: 'elzr_buc_parlament',
+        name: 'Palace of Parliament Colossus',
+        landmark: 'Palatul Parlamentului',
+        latitude: 44.4275,
+        longitude: 26.0873,
+        value: 600,
+        type: 'rare',
+        sponsorName: 'CryptoRomania Network',
+        wanderSpeedMps: 2.5,
+        wanderRadiusMeters: 90,
+      },
+      {
+        id: 'elzr_buc_unirii',
+        name: 'Piața Unirii Fountains Drop',
+        landmark: 'Fântânile Piața Unirii',
+        latitude: 44.427,
+        longitude: 26.1017,
+        value: 350,
+        type: 'standard',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 60,
+      },
+      {
+        id: 'elzr_buc_ateneu',
+        name: 'Ateneul Român Harmonic Node',
+        landmark: 'Ateneul Român',
+        latitude: 44.4413,
+        longitude: 26.0973,
+        value: 450,
+        type: 'merchant',
+        sponsorName: 'Dacia TON Guild',
+        wanderSpeedMps: 1.7,
+        wanderRadiusMeters: 50,
+      },
+      {
+        id: 'elzr_buc_herastrau',
+        name: 'Herăstrău Lakeside Cache',
+        landmark: 'Parcul Regele Mihai I (Herăstrău)',
+        latitude: 44.4705,
+        longitude: 26.0833,
+        value: 300,
+        type: 'standard',
+        wanderSpeedMps: 2.8,
+        wanderRadiusMeters: 100,
+      },
+    ],
+  },
+
+  // 9. SINGAPORE
+  {
+    id: 'singapore',
+    cityName: 'Singapore',
+    country: 'Singapore',
+    latitude: 1.3521,
+    longitude: 103.8198,
+    description: 'Southeast Asian FinTech capital with premier waterfront dropzones.',
+    coins: [
+      {
+        id: 'elzr_sg_marinabay',
+        name: 'Marina Bay Sands Beacon',
+        landmark: 'Marina Bay Waterfront',
+        latitude: 1.2838,
+        longitude: 103.8591,
+        value: 700,
+        type: 'rare',
+        sponsorName: 'SG FinTech Alliance',
+        wanderSpeedMps: 2.5,
+        wanderRadiusMeters: 85,
+      },
+      {
+        id: 'elzr_sg_gardens',
+        name: 'SuperTree Grove Solar Drop',
+        landmark: 'Gardens by the Bay',
+        latitude: 1.2816,
+        longitude: 103.8636,
+        value: 400,
+        type: 'standard',
+        wanderSpeedMps: 2.0,
+        wanderRadiusMeters: 70,
+      },
+    ],
+  },
+
+  // 10. ROME, ITALY
+  {
+    id: 'rome',
+    cityName: 'Rome',
+    country: 'Italy',
+    latitude: 41.9028,
+    longitude: 12.4964,
+    description: 'Eternal city packed with ancient Roman crypto treasures.',
+    coins: [
+      {
+        id: 'elzr_rome_colosseum',
+        name: 'Colosseum Gladiator Coin',
+        landmark: 'Colosseo',
+        latitude: 41.8902,
+        longitude: 12.4922,
+        value: 650,
+        type: 'rare',
+        sponsorName: 'Imperium TON',
+        wanderSpeedMps: 2.4,
+        wanderRadiusMeters: 85,
+      },
+      {
+        id: 'elzr_rome_trevi',
+        name: 'Trevi Fountain Fortune',
+        landmark: 'Fontana di Trevi',
+        latitude: 41.9009,
+        longitude: 12.4833,
+        value: 450,
+        type: 'merchant',
+        sponsorName: 'BellaRoma Partner',
+        wanderSpeedMps: 1.6,
+        wanderRadiusMeters: 45,
+      },
+    ],
+  },
+];
+
+/**
+ * Global application constants
+ */
+export const APP_CONFIG = {
+  APP_NAME: 'ELIEZER GO',
+  TOKEN_SYMBOL: 'ELZR',
+  COLLECTION_PROXIMITY_METERS: 15,
+  BASE_SPAWN_COUNT: 6,
+  CITY_DEFAULT: 'Gersthofen',
+  STATE_DEFAULT: 'Bavaria',
+  WANDER_INTERVAL_MS: 3000, // interval for moving coins around the city
+};

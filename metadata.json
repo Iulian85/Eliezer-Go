@@ -1,0 +1,8 @@
+{
+  "name": "Eliezer Go",
+  "description": "AR coin hunting experience.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

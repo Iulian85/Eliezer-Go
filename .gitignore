@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+.DS_Store
+*.log
+.env*
+.security-work/
+.upstream-review/
+.aistudio/
+public/assets/aistudio/
+fix-ar.cjs
+*.sql
+*.pem
+*.key
+*.p12
+*.bak
