@@ -6,6 +6,7 @@ import { DeviceOrientationControls } from '@react-three/drei';
 import { Group } from 'three';
 import { Coin3D } from './Coin3D';
 import { localCoinFlight, createCoinFlightPath, CoinFlight } from '../utils/localCoinFlight';
+import { initialFlightRotation } from '../utils/flightView';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
@@ -88,6 +89,7 @@ export const ARView: React.FC<ARViewProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
+  const [flightCameraReady, setFlightCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => !soundManager.isMuted());
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
@@ -716,9 +718,9 @@ export const ARView: React.FC<ARViewProps> = ({
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
         <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
-          <FixedFlightCamera />
+          <FixedFlightCamera onReady={setFlightCameraReady} />
           <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
-          {activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
+          {flightCameraReady && activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
         </Canvas>
       </div>}
 
@@ -887,7 +889,7 @@ export const ARView: React.FC<ARViewProps> = ({
                   <span>
                     {!userCoords
                       ? 'GPS...'
-                      : flightState?.escaped ? 'Escaped'
+                      : flightState?.escaped ? 'Moneda a trecut'
                       : displayedDistance >= 1000
                       ? `${(displayedDistance / 1000).toFixed(1)} km`
                       : `${displayedDistance < 10 ? (Math.ceil(displayedDistance * 10) / 10).toFixed(1) : Math.ceil(displayedDistance)} m`}{' '}
@@ -974,7 +976,15 @@ export const ARView: React.FC<ARViewProps> = ({
   );
 };
 
-function FixedFlightCamera() {
+function FixedFlightCamera({ onReady }: { onReady: (ready: boolean) => void }) {
+  useEffect(() => {
+    onReady(false);
+    const ready = (event: DeviceOrientationEvent) => {
+      if (typeof event.beta === 'number' && typeof event.gamma === 'number') onReady(true);
+    };
+    window.addEventListener('deviceorientation', ready);
+    return () => window.removeEventListener('deviceorientation', ready);
+  }, [onReady]);
   useFrame(({ camera }) => {
     camera.position.set(0, 0, 0);
     camera.updateMatrixWorld();
@@ -987,13 +997,15 @@ function EncounterCoin({ flight, canCollect, isCollecting, onClick }: {
 }) {
   const group = useRef<Group>(null);
   const position = useRef(new Vector3());
-  useFrame(() => {
+  const flightRotation = useRef<Quaternion | null>(null);
+  useFrame(({ camera }) => {
     if (!group.current) return;
     if (isCollecting) return;
     // Like the original: start on the first rendered frame, never while the camera is loading.
     if (!Number.isFinite(flight.startedAt)) flight.startedAt = performance.now();
+    if (!flightRotation.current) flightRotation.current = initialFlightRotation(flight.path, camera.quaternion);
     const state = localCoinFlight(flight, performance.now());
-    position.current.set(...state.position);
+    position.current.set(...state.position).applyQuaternion(flightRotation.current);
     group.current.position.copy(position.current);
     group.current.visible = !state.escaped && state.distance <= 9;
   });

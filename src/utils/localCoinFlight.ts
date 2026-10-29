@@ -19,11 +19,15 @@ export function createCoinFlightPath(random = Math.random): CoinFlightPath {
 }
 
 export interface CoinFlight { startedAt: number; path: CoinFlightPath }
+export const VIEWER_HEIGHT = 1.6;
 export function localCoinFlight(flight: CoinFlight, now: number, animationSeconds = now / 1000) {
-  if (!Number.isFinite(flight.startedAt)) return { position: flight.path.start, distance: Math.hypot(...flight.path.start), escaped: false };
+  if (!Number.isFinite(flight.startedAt)) {
+    const position: [number, number, number] = [flight.path.start[0], flight.path.start[1] - VIEWER_HEIGHT, flight.path.start[2]];
+    return { position, distance: Math.hypot(...position), escaped: false };
+  }
   const elapsed = Math.max(0, now - flight.startedAt) / 1000;
   const progress = Math.min(elapsed / flight.path.durationSeconds, 1);
   const position = flight.path.start.map((value, axis) => value + (flight.path.end[axis] - value) * progress) as [number, number, number];
-  position[1] += Math.sin(animationSeconds * 1.2) * .02;
+  position[1] += Math.sin(animationSeconds * 1.2) * .02 - VIEWER_HEIGHT;
   return { position, distance: Math.hypot(...position), escaped: progress >= 1 };
 }

@@ -5,7 +5,7 @@ import { localCoinFlight, createCoinFlightPath } from '../src/utils/localCoinFli
 test('camera loading does not consume the flight or cause an immediate escape', () => {
   const flight = { startedAt: NaN, path: createCoinFlightPath(() => .5) };
   assert.equal(localCoinFlight(flight, 300000).escaped, false);
-  assert.deepEqual(localCoinFlight(flight, 300000).position, flight.path.start);
+  assert.equal(localCoinFlight(flight, 300000).position[1], flight.path.start[1] - 1.6);
   flight.startedAt = 300000;
   assert.equal(localCoinFlight(flight, 301000).escaped, false);
 });
