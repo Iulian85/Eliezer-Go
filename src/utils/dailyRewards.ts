@@ -7,13 +7,13 @@ export interface StreakTier {
 }
 
 export const STREAK_TIERS: StreakTier[] = [
-  { day: 1, elzr: 1, points: 50, label: 'Day 1' },
-  { day: 2, elzr: 2, points: 100, label: 'Day 2' },
-  { day: 3, elzr: 3, points: 150, label: 'Day 3' },
-  { day: 4, elzr: 4, points: 200, label: 'Day 4' },
-  { day: 5, elzr: 5, points: 300, label: 'Day 5' },
-  { day: 6, elzr: 7, points: 450, label: 'Day 6' },
-  { day: 7, elzr: 10, points: 750, label: 'Day 7', isJackpot: true },
+  { day: 1, elzr: 50, points: 50, label: 'Day 1' },
+  { day: 2, elzr: 50, points: 100, label: 'Day 2' },
+  { day: 3, elzr: 50, points: 150, label: 'Day 3' },
+  { day: 4, elzr: 50, points: 200, label: 'Day 4' },
+  { day: 5, elzr: 50, points: 300, label: 'Day 5' },
+  { day: 6, elzr: 50, points: 450, label: 'Day 6' },
+  { day: 7, elzr: 50, points: 750, label: 'Day 7', isJackpot: true },
 ];
 
 export function getTodayDateString(): string {

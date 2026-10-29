@@ -79,6 +79,16 @@ export async function saveAdminCoinDropToService(_drop: Omit<ServiceCoinDrop, 'i
 }
 export interface CreditReceipt { success: true; credited: boolean; value: number; balance: number; score: number }
 const accountHeaders = () => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getTelegramWebApp()?.initData || '' });
+export interface HomeStats { globalHunters: number; activeHunters: number; elzrInCity: number | null }
+export async function fetchHomeStats(city: string): Promise<HomeStats> {
+  const response = await fetch('/api/home/stats', { method: 'POST', headers: accountHeaders(),
+    body: JSON.stringify({ city }), signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error('Statistics unavailable');
+  const data = await response.json();
+  if (![data.globalHunters, data.activeHunters].every(n => Number.isSafeInteger(n) && n >= 0) ||
+      (data.elzrInCity !== null && (!Number.isFinite(data.elzrInCity) || data.elzrInCity < 0))) throw new Error('Invalid statistics');
+  return data;
+}
 export async function fetchAccountBalance(): Promise<{ balance: number; score: number } | null> {
   try {
     const response = await fetch('/api/account', { headers: accountHeaders(), signal: AbortSignal.timeout(10000) });

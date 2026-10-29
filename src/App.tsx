@@ -100,7 +100,7 @@ export default function App() {
   // Global Admin Event States
   const [is2XEventActive, setIs2XEventActive] = useState<boolean>(false);
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string>(
-    '⚡ AR COIN HUNT IS LIVE IN GERSTHOFEN! TAP HUNT TO START!'
+    ''
   );
 
   useEffect(() => {
@@ -293,7 +293,7 @@ export default function App() {
   const handleCoinCollected = (coin: ARCoinTarget) => {
     if (!Number.isFinite(coin.creditedBalance) || !Number.isFinite(coin.creditedScore)) return;
     setUserState(prev => ({ ...prev, elzrCollected: coin.creditedBalance!,
-      elzrInCity: Math.max(0, prev.elzrInCity - 1),
+      elzrInCity: Math.max(0, prev.elzrInCity - coin.value),
       points: { ...prev.points, gameplay: coin.creditedScore! } }));
   };
 
@@ -449,10 +449,12 @@ export default function App() {
       </header>
 
       {/* Optional Global Announcement Banner */}
-      {globalAnnouncement && (
+      {(
         <div className="w-full max-w-md mx-auto bg-gradient-to-r from-cyan-950 to-blue-950 border-b border-cyan-500/40 px-4 py-1.5 flex items-center gap-2 text-[11px] font-mono text-cyan-300 z-20">
           <Megaphone className="w-3.5 h-3.5 text-cyan-400 shrink-0 animate-pulse" />
-          <span className="truncate">{globalAnnouncement}</span>
+          <span className="truncate">{globalAnnouncement || (userState.city
+            ? `⚡ AR COIN HUNT IS LIVE IN ${userState.city.toUpperCase()}! TAP HUNT TO START!`
+            : '⚡ AR COIN HUNT — WAITING FOR YOUR CITY')}</span>
         </div>
       )}
 
@@ -462,6 +464,9 @@ export default function App() {
           <HomeTab
             userState={userState}
             onUpdateCity={handleUpdateCity}
+            onStatsLoaded={stats => setUserState(previous => ({ ...previous,
+              globalHunters: stats.globalHunters, activeHunters: stats.activeHunters,
+              elzrInCity: stats.elzrInCity ?? 0 }))}
             onNavigateToHunt={() => {
               triggerHaptic('medium');
               setCurrentTab('hunt');

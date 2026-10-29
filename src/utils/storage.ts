@@ -5,10 +5,10 @@ const STORAGE_KEY_CAMPAIGNS = 'elzr_hunter_campaigns_v1';
 
 export const initialUserState: UserState = {
   elzrCollected: 0,
-  city: 'GERSTHOFEN',
-  globalHunters: 3,
-  activeHunters: 1,
-  elzrInCity: 10,
+  city: '',
+  globalHunters: 0,
+  activeHunters: 0,
+  elzrInCity: 0,
   points: {
     gameplay: 0,
     rareCoins: 0,
@@ -79,6 +79,10 @@ export function loadUserState(): UserState {
       return {
         ...initialUserState,
         ...parsed,
+        city: '',
+        globalHunters: 0,
+        activeHunters: 0,
+        elzrInCity: 0,
         points: { ...initialUserState.points, ...(parsed.points || {}) },
         dailyCheckIn: { ...initialUserState.dailyCheckIn, ...(parsed.dailyCheckIn || {}) },
         achievements: { ...initialUserState.achievements, ...(parsed.achievements || {}) },

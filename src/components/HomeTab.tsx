@@ -5,10 +5,12 @@ import { triggerHaptic } from '../utils/telegram';
 import { DailyStreakCard } from './DailyStreakCard';
 import { GeoCoordinate } from '../utils/geo';
 import { useCity } from '../utils/useCity';
+import { fetchHomeStats, HomeStats } from '../lib/api';
 
 interface HomeTabProps {
   userState: UserState;
   onUpdateCity: (newCity: string) => void;
+  onStatsLoaded: (stats: HomeStats) => void;
   onNavigateToHunt: () => void;
   onNavigateToRanks?: () => void;
   onNavigateToWallet?: () => void;
@@ -19,6 +21,7 @@ interface HomeTabProps {
 export const HomeTab: React.FC<HomeTabProps> = ({
   userState,
   onUpdateCity,
+  onStatsLoaded,
   onNavigateToHunt,
   onNavigateToRanks,
   onNavigateToWallet,
@@ -30,7 +33,20 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [gpsError, setGpsError] = useState('');
   const [gpsRequest, setGpsRequest] = useState(0);
   const { city, loading: cityLoading } = useCity(coordinates, gpsRequest);
-  useEffect(() => { if (city) onUpdateCity(city); }, [city]);
+  const [stats, setStats] = useState<HomeStats | null>(null);
+  useEffect(() => { if (stats) onStatsLoaded(stats); }, [stats]);
+  useEffect(() => { onUpdateCity(city); }, [city]);
+  useEffect(() => {
+    let active = true;
+    setStats(null);
+    const refresh = async () => {
+      try { const result = await fetchHomeStats(city); if (active) setStats(result); }
+      catch { if (active) setStats(null); }
+    };
+    void refresh();
+    const timer = setInterval(() => { if (!document.hidden) void refresh(); }, 30000);
+    return () => { active = false; clearInterval(timer); };
+  }, [city]);
 
   const detectLocation = () => {
     triggerHaptic('medium');
@@ -184,7 +200,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </div>
           </div>
           <div className="text-4xl font-extrabold text-white tracking-tight my-1">
-            {userState.globalHunters}
+            {stats?.globalHunters ?? '—'}
           </div>
           <div className="text-[10px] font-mono tracking-wider text-slate-400 uppercase mt-2">
             IN NETWORK
@@ -202,7 +218,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </div>
           </div>
           <div className="text-4xl font-extrabold text-white tracking-tight my-1">
-            {userState.activeHunters}
+            {stats?.activeHunters ?? '—'}
           </div>
           <div className="text-[10px] font-mono tracking-wider text-slate-400 uppercase mt-2">
             LAST 15 MIN
@@ -218,7 +234,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               ELZR IN CITY
             </div>
             <div className="text-5xl font-extrabold text-white tracking-tight my-1 font-sans">
-              {userState.elzrInCity}
+              {stats?.elzrInCity ?? '—'}
             </div>
           </div>
           <div className="w-11 h-11 rounded-full bg-[#351522] border border-rose-500/30 flex items-center justify-center text-rose-400">
@@ -226,7 +242,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </div>
         </div>
         <div className="text-[11px] font-mono tracking-wider text-slate-400 uppercase mt-4 flex items-center justify-between">
-          <span>AVAILABLE INVENTORY FOR {userState.city}</span>
+          <span>{city ? `AVAILABLE ELZR POINTS IN ${city}` : 'WAITING FOR YOUR CITY'}</span>
           <button
             onClick={onNavigateToHunt}
             className="text-cyan-400 hover:text-cyan-300 font-bold lowercase text-[11px] flex items-center gap-1"
