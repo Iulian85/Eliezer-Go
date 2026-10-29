@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { localCoinFlight, createCoinFlightPath } from '../src/utils/localCoinFlight';
 
+test('camera loading does not consume the flight or cause an immediate escape', () => {
+  const flight = { startedAt: NaN, path: createCoinFlightPath(() => .5) };
+  assert.equal(localCoinFlight(flight, 300000).escaped, false);
+  assert.deepEqual(localCoinFlight(flight, 300000).position, flight.path.start);
+  flight.startedAt = 300000;
+  assert.equal(localCoinFlight(flight, 301000).escaped, false);
+});
+
 test('legacy flight uses the original 80 metre path, offsets and 20–28 second duration', () => {
   const start = 1000;
   const path = createCoinFlightPath(() => .5);

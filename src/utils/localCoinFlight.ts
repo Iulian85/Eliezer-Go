@@ -20,6 +20,7 @@ export function createCoinFlightPath(random = Math.random): CoinFlightPath {
 
 export interface CoinFlight { startedAt: number; path: CoinFlightPath }
 export function localCoinFlight(flight: CoinFlight, now: number, animationSeconds = now / 1000) {
+  if (!Number.isFinite(flight.startedAt)) return { position: flight.path.start, distance: Math.hypot(...flight.path.start), escaped: false };
   const elapsed = Math.max(0, now - flight.startedAt) / 1000;
   const progress = Math.min(elapsed / flight.path.durationSeconds, 1);
   const position = flight.path.start.map((value, axis) => value + (flight.path.end[axis] - value) * progress) as [number, number, number];
