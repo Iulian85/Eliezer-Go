@@ -1,6 +1,15 @@
-import { Euler, MathUtils, Quaternion, Vector3 } from 'three';
+import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from 'three';
 
 export interface Coordinate { latitude: number; longitude: number }
+
+// One-time view calibration. Keep this offset for the session: recomputing it
+// each frame would lock the coin to the screen instead of allowing the user to turn.
+export function initialCameraAlignment(position: Vector3, focus: Vector3, orientation: Quaternion): Quaternion {
+  const facing = new Quaternion().setFromRotationMatrix(
+    new Matrix4().lookAt(position, focus, new Vector3(0, 1, 0)),
+  );
+  return facing.multiply(orientation.clone().invert());
+}
 
 // Local tangent plane: X east, Y up, -Z north. One scene unit = one metre.
 export function toWorldPosition(point: Coordinate, origin: Coordinate, height = 0): [number, number, number] {
