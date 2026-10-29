@@ -58,6 +58,18 @@ test('stationary GPS noise is held, inaccurate and out-of-order fixes cannot tel
   assert.equal(filter.update({ ...initial, latitude: origin.latitude + .001, timestamp: 500 })?.latitude, origin.latitude);
 });
 
+test('isolated lateral GPS spikes do not zigzag the rendered observer', () => {
+  const filter = new VisualPositionFilter();
+  const initial = { ...origin, accuracy: 5, timestamp: 1000 };
+  filter.update(initial);
+  for (let i = 1; i <= 12; i++) {
+    const offset = i % 3 === 1 ? (i % 2 ? 8 : -8) : 0;
+    const result = filter.update({ ...initial, longitude: origin.longitude + offset / 6371000 * 180 / Math.PI,
+      timestamp: 1000 + i * 1000 })!;
+    close(toWorldPosition(result, origin)[0], 0);
+  }
+});
+
 test('sustained walking moves the observer while the address and pedestal stay fixed', () => {
   const filter = new VisualPositionFilter();
   filter.update({ ...origin, accuracy: 3, timestamp: 1000 });

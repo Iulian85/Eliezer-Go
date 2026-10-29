@@ -68,7 +68,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
     if (!groupRef.current) return;
 
     // Smooth continuous 3D coin rotation showing both faces & the lateral blue rim
-    const speed = isCollecting ? 5 : hovered ? .65 : .5;
+    const speed = isCollecting ? 5 : .25;
     groupRef.current.rotation.y += delta * speed;
 
     // Smooth pulse for collection golden glow and light beam when player is close

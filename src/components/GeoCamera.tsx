@@ -15,8 +15,8 @@ export function GeoCamera({ origin, user, orientation }: {
       camera.quaternion.copy(orientation);
       initialized.current = true;
     } else {
-      camera.position.lerp(target.current, 1 - Math.exp(-delta * 6));
-      camera.quaternion.slerp(orientation, 1 - Math.exp(-delta * 20));
+      camera.position.lerp(target.current, 1 - Math.exp(-delta * 2));
+      camera.quaternion.slerp(orientation, 1 - Math.exp(-delta * 10));
     }
     camera.updateMatrixWorld();
   });
