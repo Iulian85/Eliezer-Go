@@ -1,6 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Float } from '@react-three/drei';
 import {
   createCoinFrontTexture,
   createCoinBackTexture,
@@ -67,9 +68,11 @@ export const Coin3D: React.FC<Coin3DProps> = ({
   useFrame((state, delta) => {
     if (!groupRef.current) return;
 
-    // Smooth continuous 3D coin rotation showing both faces & the lateral blue rim
-    const speed = isCollecting ? 5 : .25;
-    groupRef.current.rotation.y += delta * speed;
+    // Original Eliezer-Hunt coin animation.
+    if (!isCollecting) {
+      groupRef.current.rotation.y += .012;
+      groupRef.current.rotation.x = canCollect ? Math.sin(state.clock.elapsedTime * 2.5) * .15 : 0;
+    }
 
     // Smooth pulse for collection golden glow and light beam when player is close
     if (canCollect && glowLightRef.current) {
@@ -84,7 +87,10 @@ export const Coin3D: React.FC<Coin3DProps> = ({
     }
 
     if (isCollecting) {
-      groupRef.current.scale.multiplyScalar(Math.exp(-5 * delta));
+      groupRef.current.rotation.y += .8;
+      groupRef.current.rotation.z += .5;
+      groupRef.current.position.y += 2 * delta;
+      groupRef.current.scale.lerp(new THREE.Vector3(0, 0, 0), .1);
     }
   });
 
@@ -101,6 +107,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
       }}
     >
       <group ref={groupRef}>
+      <Float speed={5} rotationIntensity={.5} floatIntensity={.5} enabled={!isCollecting}>
       {/* Generous touch/click collider for mobile tapping in AR */}
       <mesh
         visible={false}
@@ -196,6 +203,7 @@ export const Coin3D: React.FC<Coin3DProps> = ({
           emissiveIntensity={canCollect ? 0.4 : hovered ? 0.22 : 0.05}
         />
       </mesh>
+      </Float>
       </group>
     </group>
   );

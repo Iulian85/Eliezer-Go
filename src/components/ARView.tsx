@@ -4,7 +4,7 @@ import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Coin3D } from './Coin3D';
-import { localCoinFlight } from '../utils/localCoinFlight';
+import { localCoinFlight, createCoinFlightPath, CoinFlight } from '../utils/localCoinFlight';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
@@ -102,7 +102,7 @@ export const ARView: React.FC<ARViewProps> = ({
   const positionRef = useRef<GeoCoordinate | null>(null);
   const collectingRef = useRef(false);
   const [orientation, setOrientation] = useState<Quaternion | null>(null);
-  const localFlights = useRef(new Map<string, { startedAt: number; orientation: Quaternion }>());
+  const localFlights = useRef(new Map<string, CoinFlight>());
   const [, setFlightTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setFlightTick(value => value + 1), 100);
@@ -312,12 +312,12 @@ export const ARView: React.FC<ARViewProps> = ({
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
   useEffect(() => {
     if (activeCoin && isCoinInARRange && orientation && !localFlights.current.has(activeCoin.id)) {
-      localFlights.current.set(activeCoin.id, { startedAt: performance.now(), orientation: orientation.clone() });
+      localFlights.current.set(activeCoin.id, { startedAt: performance.now(), path: createCoinFlightPath() });
       setFlightTick(value => value + 1);
     }
   }, [activeCoin?.id, isCoinInARRange, orientation]);
   const flight = activeCoin ? localFlights.current.get(activeCoin.id) : undefined;
-  const flightState = flight ? localCoinFlight(flight.startedAt, performance.now()) : null;
+  const flightState = flight ? localCoinFlight(flight, performance.now()) : null;
   const displayedDistance = flightState?.distance ?? realDistance;
   // Glow and collection use the same unrounded two-metre boundary.
   const canCollect = Boolean(isCoinInARRange && activeCoin && flightState && !flightState.escaped &&
@@ -613,7 +613,7 @@ export const ARView: React.FC<ARViewProps> = ({
 
     const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
     const encounter = localFlights.current.get(activeCoin.id);
-    const encounterState = encounter ? localCoinFlight(encounter.startedAt, performance.now()) : null;
+    const encounterState = encounter ? localCoinFlight(encounter, performance.now()) : null;
     if (!canCollect || !encounterState || encounterState.escaped || encounterState.distance > 2 || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
@@ -983,18 +983,17 @@ function FixedFlightCamera({ orientation }: { orientation: Quaternion }) {
 }
 
 function EncounterCoin({ flight, canCollect, isCollecting, onClick }: {
-  flight: { startedAt: number; orientation: Quaternion }; canCollect: boolean; isCollecting: boolean; onClick: () => void;
+  flight: CoinFlight; canCollect: boolean; isCollecting: boolean; onClick: () => void;
 }) {
   const group = useRef<Group>(null);
   const position = useRef(new Vector3());
   useFrame(() => {
     if (!group.current) return;
     if (isCollecting) return;
-    const state = localCoinFlight(flight.startedAt, performance.now());
-    // Capture the initial viewing frame once; subsequent phone movement cannot change the path.
-    position.current.set(...state.position).applyQuaternion(flight.orientation);
+    const state = localCoinFlight(flight, performance.now());
+    position.current.set(...state.position);
     group.current.position.copy(position.current);
-    group.current.visible = !state.escaped;
+    group.current.visible = !state.escaped && state.distance <= 9;
   });
   return <group ref={group}><Coin3D scale={.52} canCollect={canCollect} isCollecting={isCollecting} onClick={onClick} /></group>;
 }
