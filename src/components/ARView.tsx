@@ -921,13 +921,13 @@ export const ARView: React.FC<ARViewProps> = ({
                 setIsRadarOpen(true);
               }}
               aria-label="Open radar map"
-              className="flex items-center gap-2 px-2 min-[420px]:px-3.5 py-2 rounded-full bg-cyan-950/90 backdrop-blur border border-cyan-400/80 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)] active:scale-95 transition-all cursor-pointer hover:border-cyan-300 hover:text-white shrink-0"
+              className="flex items-center gap-1 min-[420px]:gap-2 px-2 min-[420px]:px-3.5 py-2 rounded-full bg-cyan-950/90 backdrop-blur border border-cyan-400/80 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)] active:scale-95 transition-all cursor-pointer hover:border-cyan-300 hover:text-white shrink-0"
             >
               <div className="relative w-4 h-4 rounded-full border border-cyan-400 flex items-center justify-center">
                 <div className="absolute inset-0 rounded-full border border-cyan-400/50 animate-ping" />
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
               </div>
-              <span className="hidden min-[420px]:inline text-xs font-mono font-extrabold tracking-wider text-cyan-200">RADAR MAP</span>
+              <span className="whitespace-nowrap text-[10px] min-[420px]:text-xs font-mono font-extrabold tracking-wider text-cyan-200">RADAR MAP</span>
             </button>
           </div>
 
