@@ -297,17 +297,6 @@ export default function App() {
       points: { ...prev.points, gameplay: coin.creditedScore! } }));
   };
 
-  const handleRewardBonusCoins = (amount: number) => {
-    setUserState((prev) => ({
-      ...prev,
-      elzrCollected: prev.elzrCollected + amount,
-      points: {
-        ...prev.points,
-        gameplay: prev.points.gameplay + amount,
-      },
-    }));
-  };
-
   const handleActivateReferralCode = (code: string): boolean => {
     if (userState.referral.hasActivatedCode) return false;
 
@@ -489,7 +478,6 @@ export default function App() {
             onStartHunting={handleStartHuntingWithEnergy}
             elzrInCity={userState.elzrInCity}
             cityName={userState.city}
-            onRewardCoins={handleRewardBonusCoins}
             energy={energy}
             onNavigateToShop={() => {
               triggerHaptic('medium');

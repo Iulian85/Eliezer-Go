@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, MapPin, Sparkles, Timer, AlertTriangle, Scan, Users, Flame, Radio, Zap } from 'lucide-react';
+import { Camera, MapPin, Sparkles, Timer, AlertTriangle, Users, Flame, Radio, Zap } from 'lucide-react';
 import { triggerHaptic } from '../utils/telegram';
 import { playSound } from '../utils/audio';
-import { SmartScanModal } from './SmartScanModal';
 import { RadarMapOverlay } from './RadarMapOverlay';
 import { GeoCoin, GeoCoordinate, getDistanceMeters, getBearingDegrees } from '../utils/geo';
 import { fetchCoinDropsFromService } from '../lib/api';
@@ -13,7 +12,6 @@ interface HuntTabProps {
   onStartHunting: (prewarmedStream?: MediaStream) => boolean;
   elzrInCity: number;
   cityName: string;
-  onRewardCoins: (amount: number, reason: string) => void;
   energy: number;
   onNavigateToShop: () => void;
 }
@@ -22,11 +20,9 @@ export const HuntTab: React.FC<HuntTabProps> = ({
   onStartHunting,
   elzrInCity,
   cityName,
-  onRewardCoins,
   energy,
   onNavigateToShop,
 }) => {
-  const [isSmartScanOpen, setIsSmartScanOpen] = useState<boolean>(false);
   const [isRadarMapOpen, setIsRadarMapOpen] = useState<boolean>(false);
 
   const [location, setLocation] = useState<GeoCoordinate | null>(null);
@@ -120,7 +116,7 @@ export const HuntTab: React.FC<HuntTabProps> = ({
           AR Hunt
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Locate nearby hunters, scan landmarks, and collect geolocated ELZR coins.
+          Locate nearby hunters and collect geolocated ELZR coins.
         </p>
       </div>
 
@@ -208,7 +204,7 @@ export const HuntTab: React.FC<HuntTabProps> = ({
           </p>
         </div>
 
-        {/* Action Buttons: START AR HUNT & SMART LANDMARK SCAN */}
+        {/* START AR HUNT */}
         <div className="w-full flex flex-col gap-2">
           {/* Main START HUNTING Button */}
           <button
@@ -219,17 +215,6 @@ export const HuntTab: React.FC<HuntTabProps> = ({
             <span className="font-mono">START AR HUNT</span>
           </button>
 
-          {/* SMART AI LANDMARK SCAN Button */}
-          <button
-            onClick={() => {
-              triggerHaptic('medium');
-              setIsSmartScanOpen(true);
-            }}
-            className="w-full py-3 px-5 rounded-full bg-gradient-to-r from-cyan-900/80 to-blue-900/80 border border-cyan-400/60 text-cyan-300 font-bold font-mono text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.2)] active:scale-95 transition-all cursor-pointer hover:border-cyan-300"
-          >
-            <Scan className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <span>SMART AI LANDMARK SCAN</span>
-          </button>
         </div>
       </div>
 
@@ -240,16 +225,6 @@ export const HuntTab: React.FC<HuntTabProps> = ({
       </div>
 
       {/* Modals */}
-      <SmartScanModal
-        isOpen={isSmartScanOpen && Boolean(location)}
-        onClose={() => setIsSmartScanOpen(false)}
-        userLat={userLat}
-        userLng={userLng}
-        onRewardCoins={(amount, reason) => {
-          onRewardCoins(amount, reason);
-        }}
-      />
-
       <RadarMapOverlay
         isOpen={isRadarMapOpen && Boolean(location)}
         onClose={() => setIsRadarMapOpen(false)}
