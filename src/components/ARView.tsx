@@ -844,14 +844,14 @@ export const ARView: React.FC<ARViewProps> = ({
           {/* Row 1: Compass Telemetry & Radar Map Button */}
           <div className="flex items-center justify-between w-full gap-2">
             {/* Compass & Proximity Pill */}
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-nowrap min-w-0">
               <button
                 onClick={() => {
                   triggerHaptic('medium');
                   playSound.buttonClick();
                   setCompassMode((prev) => (prev === 'heading-up' ? 'north-up' : 'heading-up'));
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950/85 backdrop-blur border border-cyan-500/50 shadow-md active:scale-95 transition-all cursor-pointer hover:border-cyan-400"
+                className="flex items-center gap-1.5 px-2 py-1.5 shrink-0 whitespace-nowrap rounded-full bg-slate-950/85 backdrop-blur border border-cyan-500/50 shadow-md active:scale-95 transition-all cursor-pointer hover:border-cyan-400"
               >
                 <div className="relative w-5 h-5 rounded-full border border-cyan-400/60 bg-[#061224] flex items-center justify-center shrink-0">
                   <div
@@ -873,17 +873,17 @@ export const ARView: React.FC<ARViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-mono font-black text-white">
+                  <span className="text-xs font-mono font-black text-white w-[8ch] tabular-nums">
                     {Math.round(yaw)}° {getCompassDirection(yaw)}
                   </span>
-                  <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase">
+                  <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase w-[6ch]">
                     ({compassMode === 'heading-up' ? 'HDG' : 'N-UP'})
                   </span>
                 </div>
               </button>
 
               {activeCoin && (
-                <div className="px-2.5 py-1.5 min-w-[90px] tabular-nums rounded-full bg-cyan-950/85 backdrop-blur border border-cyan-500/40 text-xs font-mono text-cyan-300 flex items-center justify-center gap-1.5 shadow-md">
+                <div className="px-1.5 py-1.5 w-[80px] shrink-0 whitespace-nowrap tabular-nums rounded-full bg-cyan-950/85 backdrop-blur border border-cyan-500/40 text-xs font-mono text-cyan-300 flex items-center justify-center gap-1 shadow-md">
                   <Navigation className="w-3.5 h-3.5 text-cyan-400" />
                   <span>
                     {!userCoords
@@ -900,13 +900,14 @@ export const ARView: React.FC<ARViewProps> = ({
                 triggerHaptic('medium');
                 setIsRadarOpen(true);
               }}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-cyan-950/90 backdrop-blur border border-cyan-400/80 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)] active:scale-95 transition-all cursor-pointer hover:border-cyan-300 hover:text-white shrink-0"
+              aria-label="Open radar map"
+              className="flex items-center gap-2 px-2 min-[420px]:px-3.5 py-2 rounded-full bg-cyan-950/90 backdrop-blur border border-cyan-400/80 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)] active:scale-95 transition-all cursor-pointer hover:border-cyan-300 hover:text-white shrink-0"
             >
               <div className="relative w-4 h-4 rounded-full border border-cyan-400 flex items-center justify-center">
                 <div className="absolute inset-0 rounded-full border border-cyan-400/50 animate-ping" />
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
               </div>
-              <span className="text-xs font-mono font-extrabold tracking-wider text-cyan-200">RADAR MAP</span>
+              <span className="hidden min-[420px]:inline text-xs font-mono font-extrabold tracking-wider text-cyan-200">RADAR MAP</span>
             </button>
           </div>
 
