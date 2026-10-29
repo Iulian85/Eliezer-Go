@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { Quaternion, Vector3 } from 'three';
 import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { DeviceOrientationControls } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
 import { Group } from 'three';
 import { Coin3D } from './Coin3D';
-import { localCoinFlight, createCoinFlightPath, CoinFlight } from '../utils/localCoinFlight';
-import { initialFlightRotation } from '../utils/flightView';
-import { selectFlightCameraSource, FlightCameraSource } from '../utils/flightCameraSource';
+import { GyroCamera, createCoinFlightPath, AircoinsCoinMotion, CoinFlightPath } from './OriginalCoinFlight';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
@@ -90,7 +87,6 @@ export const ARView: React.FC<ARViewProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
-  const [flightCameraReady, setFlightCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => !soundManager.isMuted());
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
@@ -106,12 +102,9 @@ export const ARView: React.FC<ARViewProps> = ({
   const positionRef = useRef<GeoCoordinate | null>(null);
   const collectingRef = useRef(false);
   const [orientation, setOrientation] = useState<Quaternion | null>(null);
-  const localFlights = useRef(new Map<string, CoinFlight>());
+  const localFlights = useRef(new Map<string, CoinFlightPath>());
+  const [flightReports, setFlightReports] = useState<Record<string, { distance: number; timeLeft: number; escaped: boolean }>>({});
   const [, setFlightTick] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => setFlightTick(value => value + 1), 100);
-    return () => clearInterval(timer);
-  }, []);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [coinError, setCoinError] = useState<string | null>(null);
   const [gpsTimestamp, setGpsTimestamp] = useState(0);
@@ -316,16 +309,16 @@ export const ARView: React.FC<ARViewProps> = ({
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
   useEffect(() => {
     if (hasCamera && activeCoin && isCoinInARRange && !localFlights.current.has(activeCoin.id)) {
-      localFlights.current.set(activeCoin.id, { startedAt: NaN, path: createCoinFlightPath() });
+      localFlights.current.set(activeCoin.id, createCoinFlightPath());
       setFlightTick(value => value + 1);
     }
   }, [activeCoin?.id, isCoinInARRange, hasCamera]);
   const flight = activeCoin ? localFlights.current.get(activeCoin.id) : undefined;
-  const flightState = flight ? localCoinFlight(flight, performance.now()) : null;
+  const flightState = activeCoin ? flightReports[activeCoin.id] : undefined;
   const displayedDistance = flightState?.distance ?? realDistance;
-  // Glow and collection use the same unrounded two-metre boundary.
+  // Keep authenticated crediting; encounter visibility and interaction follow the source app.
   const canCollect = Boolean(isCoinInARRange && activeCoin && flightState && !flightState.escaped &&
-    flightState.distance <= 2 && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
+    flightState.distance <= 1 && flightState.timeLeft > .35 && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -616,9 +609,7 @@ export const ARView: React.FC<ARViewProps> = ({
     if (collectingRef.current || isCollecting || !activeCoin || activeCoin.collected || Date.now() - gpsTimestamp >= 15000) return;
 
     const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
-    const encounter = localFlights.current.get(activeCoin.id);
-    const encounterState = encounter ? localCoinFlight(encounter, performance.now()) : null;
-    if (!canCollect || !encounterState || encounterState.escaped || encounterState.distance > 2 || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
+    if (!canCollect || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
         playSound.buttonClick();
@@ -719,9 +710,10 @@ export const ARView: React.FC<ARViewProps> = ({
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
         <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
-          <FixedFlightCamera fallbackOrientation={orientation} onReady={setFlightCameraReady} />
-          <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
-          {flightCameraReady && activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
+          <GyroCamera />
+          <ambientLight intensity={1.5} /><directionalLight position={[5, 10, 5]} intensity={2} />
+          {activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin}
+            onReport={report => setFlightReports(previous => ({ ...previous, [activeCoin.id]: report }))} />}
         </Canvas>
       </div>}
 
@@ -975,48 +967,22 @@ export const ARView: React.FC<ARViewProps> = ({
   );
 };
 
-function FixedFlightCamera({ fallbackOrientation, onReady }: { fallbackOrientation: Quaternion | null; onReady: (ready: boolean) => void }) {
-  const browserReady = useRef(false);
-  const source = useRef<FlightCameraSource>(null);
-  const [nativeSelected, setNativeSelected] = useState(false);
-  useEffect(() => {
-    onReady(false);
-    const ready = (event: DeviceOrientationEvent) => {
-      if (typeof event.beta === 'number' && typeof event.gamma === 'number') browserReady.current = true;
-    };
-    window.addEventListener('deviceorientation', ready);
-    return () => window.removeEventListener('deviceorientation', ready);
-  }, [onReady]);
-  useFrame(({ camera }) => {
-    const next = selectFlightCameraSource(source.current, browserReady.current, Boolean(fallbackOrientation));
-    if (next !== source.current) {
-      source.current = next;
-      setNativeSelected(next === 'native');
-      onReady(next !== null);
-    }
-    camera.position.set(0, 0, 0);
-    if (source.current === 'native' && fallbackOrientation) camera.quaternion.copy(fallbackOrientation);
-    camera.updateMatrixWorld();
-  });
-  return <DeviceOrientationControls makeDefault alphaOffset={0} enabled={!nativeSelected} />;
-}
-
-function EncounterCoin({ flight, canCollect, isCollecting, onClick }: {
-  flight: CoinFlight; canCollect: boolean; isCollecting: boolean; onClick: () => void;
+function EncounterCoin({ flight, canCollect, isCollecting, onClick, onReport }: {
+  flight: CoinFlightPath; canCollect: boolean; isCollecting: boolean; onClick: () => void;
+  onReport: (report: { distance: number; timeLeft: number; escaped: boolean }) => void;
 }) {
-  const group = useRef<Group>(null);
-  const position = useRef(new Vector3());
-  const flightRotation = useRef<Quaternion | null>(null);
-  useFrame(({ camera }) => {
-    if (!group.current) return;
-    if (isCollecting) return;
-    // Like the original: start on the first rendered frame, never while the camera is loading.
-    if (!Number.isFinite(flight.startedAt)) flight.startedAt = performance.now();
-    if (!flightRotation.current) flightRotation.current = initialFlightRotation(flight.path, camera.quaternion);
-    const state = localCoinFlight(flight, performance.now());
-    position.current.set(...state.position).applyQuaternion(flightRotation.current);
-    group.current.position.copy(position.current);
-    group.current.visible = !state.escaped && state.distance <= 9;
-  });
-  return <group ref={group} position={[0, -9999, 0]}><Coin3D scale={.4} canCollect={canCollect} isCollecting={isCollecting} onClick={onClick} /></group>;
+  const coinRef = useRef<Group>(null);
+  const [distance, setDistance] = useState(99);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [escaped, setEscaped] = useState(false);
+  useEffect(() => { onReport({ distance, timeLeft, escaped }); }, [distance, timeLeft, escaped]);
+  const isNearby = distance <= 1;
+  return <>
+    <AircoinsCoinMotion coinRef={coinRef} path={flight} onDistanceChange={setDistance}
+      onEscape={() => setEscaped(true)} onTimeLeftChange={setTimeLeft} isPaused={isCollecting} />
+    <group ref={coinRef} position={[0, -9999, 0]}>
+      {!escaped && distance <= 9 && <Suspense fallback={null}><Coin3D scale={.4} interactive={canCollect && !isCollecting}
+        onClick={onClick} ghost={!canCollect} collected={isCollecting} isMoving={isNearby} /></Suspense>}
+    </group>
+  </>;
 }

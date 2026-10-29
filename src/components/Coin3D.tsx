@@ -1,210 +1,325 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Text, Cylinder, Sparkles, Float, Circle, Box, Octahedron } from '@react-three/drei';
 import * as THREE from 'three';
-import { Float } from '@react-three/drei';
-import {
-  createCoinFrontTexture,
-  createCoinBackTexture,
-  createCoinRimTexture,
-  createCoinRimEmissiveTexture,
-} from '../utils/coinTextures';
+
+const Group = 'group' as any;
+const Mesh = 'mesh' as any;
+const Primitive = 'primitive' as any;
+const SphereGeometry = 'sphereGeometry' as any;
+const MeshStandardMaterial = 'meshStandardMaterial' as any;
 
 interface Coin3DProps {
-  scale?: number;
-  hovered?: boolean;
-  canCollect?: boolean;
-  isCollecting?: boolean;
-  onClick?: () => void;
+    onClick?: () => void;
+    interactive?: boolean;
+    scale?: number;
+    ghost?: boolean;
+    collected?: boolean;
+    isSponsored?: boolean;
+    isMoving?: boolean;
+    isEvent?: boolean;
+    customText?: string; 
+    logoUrl?: string;    
+    isGiftBox?: boolean;
 }
 
+// Fix: Adding key to the props type to avoid TypeScript error when used in an array map
+const FloatingStar = ({ position, color, speed }: { position: [number, number, number], color: string, speed: number, key?: React.Key }) => {
+    const starRef = useRef<THREE.Mesh>(null);
+    useFrame((state) => {
+        if (starRef.current) {
+            starRef.current.rotation.y += 0.02;
+            starRef.current.rotation.x += 0.01;
+            starRef.current.position.y += Math.sin(state.clock.elapsedTime * speed) * 0.005;
+        }
+    });
+
+    return (
+        <Octahedron ref={starRef} args={[0.2, 0]} position={position}>
+            <MeshStandardMaterial 
+                color={color} 
+                emissive={color} 
+                emissiveIntensity={1.5} 
+                metalness={1} 
+                roughness={0} 
+            />
+        </Octahedron>
+    );
+};
+
+const GiftBoxModel = ({ collected }: { collected: boolean }) => {
+    // Beautiful colors from the reference images: Amber Box + Red Ribbon
+    const boxColor = "#fbbf24"; // Vibrant Amber
+    const ribbonColor = "#ef4444"; // Bold Red
+
+    const starPositions: { pos: [number, number, number], color: string, speed: number }[] = [
+        { pos: [2.5, 1, 1], color: "#22d3ee", speed: 1.2 },  // Cyan
+        { pos: [-2.2, 1.5, -1], color: "#f472b6", speed: 1.5 }, // Pink
+        { pos: [1.5, 2.5, -2], color: "#fbbf24", speed: 0.8 }, // Yellow
+        { pos: [-2.5, -1, 2], color: "#4ade80", speed: 2.0 },  // Green
+        { pos: [0, 3, 1], color: "#ffffff", speed: 1.1 },    // White
+    ];
+
+    return (
+        <Group>
+            {/* Main Box Body */}
+            <Box args={[2, 2, 2]}>
+                <MeshStandardMaterial color={boxColor} metalness={0.1} roughness={0.4} />
+            </Box>
+            
+            {/* The Lid */}
+            <Box args={[2.2, 0.6, 2.2]} position={[0, 0.9, 0]}>
+                <MeshStandardMaterial color={boxColor} metalness={0.1} roughness={0.4} />
+            </Box>
+
+            {/* Ribbons */}
+            {/* X-axis Ribbon */}
+            <Box args={[2.22, 0.5, 0.5]} position={[0, 0, 0]}>
+                <MeshStandardMaterial color={ribbonColor} metalness={0.5} roughness={0.2} />
+            </Box>
+            {/* Z-axis Ribbon */}
+            <Box args={[0.5, 2.22, 0.5]} position={[0, 0, 0]}>
+                <MeshStandardMaterial color={ribbonColor} metalness={0.5} roughness={0.2} />
+            </Box>
+            {/* Lid Ribbon Cross */}
+            <Box args={[2.25, 0.1, 0.5]} position={[0, 1.2, 0]}>
+                <MeshStandardMaterial color={ribbonColor} metalness={0.5} roughness={0.2} />
+            </Box>
+            <Box args={[0.5, 0.1, 2.25]} position={[0, 1.2, 0]}>
+                <MeshStandardMaterial color={ribbonColor} metalness={0.5} roughness={0.2} />
+            </Box>
+
+            {/* Stylized Bow Loops */}
+            <Group position={[0, 1.4, 0]} rotation={[0, 0.7, 0]}>
+                <Group rotation={[0, 0, 0.5]}>
+                    <Cylinder args={[0.4, 0.4, 0.15, 16]} rotation={[Math.PI / 2, 0, 0]} position={[0.4, 0, 0]}>
+                        <MeshStandardMaterial color={ribbonColor} metalness={0.3} roughness={0.5} />
+                    </Cylinder>
+                </Group>
+                <Group rotation={[0, 0, -0.5]}>
+                    <Cylinder args={[0.4, 0.4, 0.15, 16]} rotation={[Math.PI / 2, 0, 0]} position={[-0.4, 0, 0]}>
+                        <MeshStandardMaterial color={ribbonColor} metalness={0.3} roughness={0.5} />
+                    </Cylinder>
+                </Group>
+                {/* Center Knot */}
+                <Box args={[0.4, 0.4, 0.4]} position={[0, -0.1, 0]}>
+                    <MeshStandardMaterial color={ribbonColor} metalness={0.4} roughness={0.3} />
+                </Box>
+            </Group>
+
+            {/* Magical Floating Stars */}
+            {!collected && starPositions.map((star, idx) => (
+                <FloatingStar key={idx} position={star.pos} color={star.color} speed={star.speed} />
+            ))}
+        </Group>
+    );
+};
+
+// Inel de glow pulsatoriu - vizibil DOAR cand utilizatorul e la ≤1m de moneda
+// Se scaleza si isi schimba opacitatea ritmic pentru a atrage atentia
+const GlowRing = ({ color }: { color: string }) => {
+    const ringRef = useRef<THREE.Mesh>(null);
+    useFrame((state) => {
+        if (!ringRef.current) return;
+        // Puls intre 0.9 si 1.4 scala
+        const pulse = 1.1 + Math.sin(state.clock.elapsedTime * 4.0) * 0.3;
+        ringRef.current.scale.set(pulse, pulse, pulse);
+        // Opacitate pulsatorie
+        const mat = ringRef.current.material as THREE.MeshStandardMaterial;
+        mat.opacity = 0.3 + Math.sin(state.clock.elapsedTime * 4.0) * 0.25;
+    });
+
+    return (
+        <Mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
+            {/* Inel subtire in jurul monedei */}
+            <torusGeometry args={[2.4, 0.12, 8, 64]} />
+            <MeshStandardMaterial 
+                color={color} 
+                emissive={color} 
+                emissiveIntensity={3} 
+                transparent 
+                opacity={0.5} 
+            />
+        </Mesh>
+    );
+};
+
 export const Coin3D: React.FC<Coin3DProps> = ({
-  scale = 1,
-  hovered = false,
-  canCollect = false,
-  isCollecting = false,
-  onClick,
+    onClick,
+    interactive = false,
+    scale = 1,
+    ghost = false,
+    collected = false,
+    isSponsored = false,
+    isMoving = true,
+    isEvent = false,
+    customText,
+    logoUrl,
+    isGiftBox = false
 }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const glowLightRef = useRef<THREE.PointLight>(null);
-  const glowHaloRef = useRef<THREE.Mesh>(null);
-  const glowCameraPosition = useRef(new THREE.Vector3());
+    const groupRef = useRef<THREE.Group>(null);
+    const [hovered, setHovered] = useState(false);
 
-  // 1. Procedural 1024x1024 Front Texture: Bold 24K Gold "ELZR" typography & cybernetic circuits
-  const frontTexture = useMemo(() => createCoinFrontTexture(), []);
+    const texture = useMemo(() => {
+        if (!logoUrl) return null;
+        try {
+            const loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('anonymous'); 
+            const tex = loader.load(logoUrl);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.minFilter = THREE.LinearFilter;
+            return tex;
+        } catch (e) {
+            console.error("Coin3D: Failed to load texture", e);
+            return null;
+        }
+    }, [logoUrl]);
 
-  // 2. Procedural 1024x1024 Back Texture: Crystalline glowing lightning bolt ("fulger")
-  const backTexture = useMemo(() => createCoinBackTexture(), []);
+    const dots = useMemo(() => {
+        const items = [];
+        const radius = 1.5;
+        const count = 16;
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            items.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+        }
+        return items;
+    }, []);
 
-  // 3. Procedural Lateral Rim Texture: 24K Gold milled rim with electric-blue neon energy channels
-  const rimTexture = useMemo(() => createCoinRimTexture(), []);
-  const rimEmissiveTexture = useMemo(() => createCoinRimEmissiveTexture(), []);
+    useFrame((state, delta) => {
+        if (!groupRef.current) return;
+        if (collected) {
+            groupRef.current.rotation.y += 0.8;
+            groupRef.current.rotation.z += 0.5;
+            groupRef.current.position.y += 2 * delta;
+            groupRef.current.scale.lerp(new THREE.Vector3(0, 0, 0), 0.1);
+        } else {
+            const targetScaleVector = new THREE.Vector3(scale, scale, scale);
+            groupRef.current.scale.lerp(targetScaleVector, delta * 5);
+            
+            if (isGiftBox) {
+                // Mysterious wobble
+                groupRef.current.rotation.y += 0.4 * delta;
+                groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 1.5) * 0.15;
+                groupRef.current.rotation.x = Math.cos(state.clock.elapsedTime * 1.2) * 0.15;
+            } else {
+                // Rotatie constanta, lenta si curata
+                groupRef.current.rotation.y += 0.012;
+                // Tilting DOAR cand esti aproape (isMoving = isNearby)
+                if (isMoving) {
+                    groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 2.5) * 0.15;
+                } else {
+                    // Moneda curata, fara agitatie cand e departe
+                    groupRef.current.rotation.x = 0;
+                }
+            }
+        }
+    });
 
-  // Soft spherical golden radial glow texture for collection aura (NO physical rings)
-  const goldenGlowTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
+    const handleClick = (e: any) => {
+        if (interactive && !collected && !ghost) {
+            e.stopPropagation();
+            if (onClick) onClick();
+        }
+    };
 
-    const cx = 256;
-    const cy = 256;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 256);
-    grad.addColorStop(0, 'rgba(255, 235, 130, 0.95)');
-    grad.addColorStop(0.2, 'rgba(251, 191, 36, 0.85)');
-    grad.addColorStop(0.45, 'rgba(245, 158, 11, 0.45)');
-    grad.addColorStop(0.7, 'rgba(217, 119, 6, 0.18)');
-    grad.addColorStop(0.9, 'rgba(14, 165, 233, 0.08)');
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    const primaryColor = isEvent ? "#166534" : (isSponsored ? "#DC2626" : "#FFD700");
+    const secondaryColor = isEvent ? "#991B1B" : (isSponsored ? "#991B1B" : "#F59E0B");
+    const sparkleColor = isGiftBox ? "#ffffff" : (isEvent ? "#ffffff" : "#FFF700");
 
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 512, 512);
+    const mainMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+        color: primaryColor, metalness: 0.9, roughness: 0.1, emissive: secondaryColor, emissiveIntensity: 0.6,
+    }), [primaryColor, secondaryColor]);
 
-    const tex = new THREE.CanvasTexture(canvas);
-    return tex;
-  }, []);
+    const faceMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+        color: secondaryColor, metalness: 0.8, roughness: 0.3,
+    }), [isSponsored, isEvent, secondaryColor]);
 
-  useFrame((state, delta) => {
-    if (!groupRef.current) return;
+    const displayText = isSponsored ? "AD" : (customText || (isEvent ? "XMAS" : "ELZR"));
 
-    // Original Eliezer-Hunt coin animation.
-    if (!isCollecting) {
-      groupRef.current.rotation.y += .05;
-      groupRef.current.rotation.x = canCollect ? Math.sin(state.clock.elapsedTime * 3) * .2 : 0;
-    }
+    return (
+        <Group ref={groupRef} onClick={handleClick}
+            onPointerOver={() => interactive && !ghost && setHovered(true)}
+            onPointerOut={() => interactive && !ghost && setHovered(false)}
+        >
+            {(isMoving || isGiftBox) && !collected && !ghost && (
+                 <Sparkles 
+                    count={isGiftBox ? 150 : 60} 
+                    scale={isGiftBox ? 6 : 3.5} 
+                    size={isGiftBox ? 30 : 20} 
+                    speed={isGiftBox ? 4 : 1.5} 
+                    opacity={1} 
+                    color={sparkleColor} 
+                    noise={0.3} 
+                />
+            )}
 
-    // Smooth pulse for collection golden glow and light beam when player is close
-    if (canCollect && glowLightRef.current) {
-      const pulse = Math.sin(state.clock.elapsedTime * 4.5);
-      glowLightRef.current.intensity = 7 + pulse * 2.5;
+            {/* Inel de glow pulsatoriu - apare DOAR la ≤1m (isMoving=true) */}
+            {isMoving && !collected && !ghost && !isGiftBox && (
+                <GlowRing color={primaryColor} />
+            )}
 
-      if (glowHaloRef.current) {
-        glowHaloRef.current.lookAt(state.camera.getWorldPosition(glowCameraPosition.current));
-        const haloScale = 1 + pulse * 0.08;
-        glowHaloRef.current.scale.set(haloScale, haloScale, 1);
-      }
-    }
+            <Float 
+                speed={isGiftBox ? 6 : 5} 
+                rotationIntensity={isGiftBox ? 2 : 0.5} 
+                floatIntensity={isGiftBox ? 2 : 0.5} 
+                enabled={!collected}
+            >
+                {isGiftBox ? (
+                    <GiftBoxModel collected={collected} />
+                ) : (
+                    <>
+                        {/* 1. Main Outer Rim Cylinder */}
+                        <Cylinder args={[2, 2, 0.25, 32]} rotation={[Math.PI / 2, 0, 0]}>
+                            <Primitive object={mainMaterial} attach="material" />
+                        </Cylinder>
 
-    if (isCollecting) {
-      groupRef.current.rotation.y += .8;
-      groupRef.current.rotation.z += .5;
-      groupRef.current.position.y += 2 * delta;
-      groupRef.current.scale.lerp(new THREE.Vector3(0, 0, 0), .1);
-    }
-  });
+                        {/* 2. Inset Face Cylinder */}
+                        <Cylinder args={[1.7, 1.7, 0.26, 32]} rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                            <Primitive object={faceMaterial} attach="material" />
+                        </Cylinder>
 
-  return (
-    <group
-      scale={scale}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-    >
-      <group ref={groupRef}>
-      <Float speed={5} rotationIntensity={.5} floatIntensity={.5} enabled={!isCollecting}>
-      {/* Generous touch/click collider for mobile tapping in AR */}
-      <mesh
-        visible={false}
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick?.();
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          onClick?.();
-        }}
-      >
-        <sphereGeometry args={[2.5, 16, 16]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
+                        {!ghost && dots.map((dot, i) => (
+                            <Group key={i}>
+                                <Mesh position={[dot.x, dot.y, 0.14]}>
+                                    <SphereGeometry args={[0.08, 8, 8]} />
+                                    <MeshStandardMaterial color={isEvent ? "#ef4444" : "#FFFFE0"} emissive={isEvent ? "#ef4444" : "#FFFFFF"} emissiveIntensity={1} />
+                                </Mesh>
+                                <Mesh position={[dot.x, dot.y, -0.14]}>
+                                    <SphereGeometry args={[0.08, 8, 8]} />
+                                    <MeshStandardMaterial color={isEvent ? "#ef4444" : "#FFFFE0"} emissive={isEvent ? "#ef4444" : "#FFFFFF"} emissiveIntensity={1} />
+                                </Mesh>
+                            </Group>
+                        ))}
 
-      {/* Collection halo faces the camera even while the coin rotates. */}
-      {canCollect && (
-        <group>
-          {/* Pure Radiant Golden Glow Halo behind the coin (Zero physical rings!) */}
-          {goldenGlowTexture && (
-            <mesh ref={glowHaloRef} position={[0, 0, -0.06]}>
-              <planeGeometry args={[4.4, 4.4]} />
-              <meshBasicMaterial
-                map={goldenGlowTexture}
-                transparent
-                opacity={0.88}
-                blending={THREE.AdditiveBlending}
-                depthWrite={false}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-          )}
+                        <Text position={[0, 0, 0.15]} fontSize={displayText.length > 5 ? 0.8 : 1.1} anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#2a1a00">
+                            {displayText}
+                            <MeshStandardMaterial color={isEvent ? "#ffffff" : primaryColor} emissive={primaryColor} emissiveIntensity={isSponsored ? 0.5 : 0} />
+                        </Text>
 
-          {/* Dynamic glowing point lights illuminating the coin and environment */}
-          <pointLight
-            ref={glowLightRef}
-            color="#00f0ff"
-            position={[0, -1.2, 0]}
-            intensity={8}
-            distance={6}
-          />
-          <pointLight
-            color="#fbbf24"
-            position={[0, 0.5, 1.0]}
-            intensity={5}
-            distance={5}
-          />
-        </group>
-      )}
-
-      {/* Single 3D Golden AR Coin:
-          - material-0: Lateral rim (24K Gold with glowing electric-blue channels)
-          - material-1: Front face (24K Gold with prominent "ELZR" lettering)
-          - material-2: Back face (24K Gold with crystalline glowing lightning bolt "fulger")
-      */}
-      <mesh
-        ref={meshRef}
-        castShadow
-        receiveShadow
-        rotation={[Math.PI / 2, 0, 0]}
-      >
-        <cylinderGeometry args={[1.3, 1.3, 0.24, 64]} />
-
-        {/* Lateral Rim: 24K Gold + Electric Blue Power Bars */}
-        <meshStandardMaterial
-          attach="material-0"
-          map={rimTexture}
-          emissiveMap={rimEmissiveTexture}
-          emissive="#00e5ff"
-          emissiveIntensity={canCollect ? 1.8 : hovered ? 1.2 : 0.85}
-          metalness={0.92}
-          roughness={0.16}
-        />
-
-        {/* Front Face: Bold "ELZR" Typography */}
-        <meshStandardMaterial
-          attach="material-1"
-          map={frontTexture}
-          metalness={0.82}
-          roughness={0.16}
-          emissive={canCollect ? '#f59e0b' : '#000000'}
-          emissiveIntensity={canCollect ? 0.35 : hovered ? 0.2 : 0.05}
-        />
-
-        {/* Back Face: Lightning Bolt ("fulger") */}
-        <meshStandardMaterial
-          attach="material-2"
-          map={backTexture}
-          metalness={0.82}
-          roughness={0.16}
-          emissive={canCollect ? '#00e5ff' : '#000000'}
-          emissiveIntensity={canCollect ? 0.4 : hovered ? 0.22 : 0.05}
-        />
-      </mesh>
-      </Float>
-      </group>
-    </group>
-  );
+                        {texture ? (
+                            <Mesh position={[0, 0, -0.15]} rotation={[0, Math.PI, 0]}>
+                                <Circle args={[1.6, 32]}>
+                                    <MeshStandardMaterial map={texture} transparent={true} side={THREE.DoubleSide} emissive="#ffffff" emissiveIntensity={0.5} />
+                                </Circle>
+                            </Mesh>
+                        ) : (
+                            <Text 
+                                position={[0, 0, -0.15]} 
+                                rotation={[0, Math.PI, 0]} 
+                                fontSize={1.8} 
+                                anchorX="center" 
+                                anchorY="middle" 
+                                outlineWidth={0.04} 
+                                outlineColor="#2a1a00"
+                            >
+                                {isEvent ? "🎄" : "$"}
+                                <MeshStandardMaterial color={primaryColor} />
+                            </Text>
+                        )}
+                    </>
+                )}
+            </Float>
+        </Group>
+    );
 };
