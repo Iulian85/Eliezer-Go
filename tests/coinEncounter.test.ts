@@ -23,3 +23,12 @@ test('regular flying coins retain the original encounter report', () => {
   assert.equal(coinEncounterReport({}, flight), flight);
   assert.equal(coinEncounterReport({ calibration: false }, flight), flight);
 });
+
+test('fixed coin rendering is not blocked by the GPS accuracy gate', () => {
+  const fixed = { calibration: true };
+  const gps = { latitude: 48.4208, longitude: 10.8758, accuracy: 60 };
+  assert.equal(fixed.calibration, true);
+  assert.ok(gps.accuracy > 25);
+  // Rendering uses the saved geographic point; collection still uses canCollectAt.
+  assert.equal(coinEncounterReport(fixed, { distance: 5, bearing: 90, timeLeft: 0, escaped: false }), undefined);
+});
