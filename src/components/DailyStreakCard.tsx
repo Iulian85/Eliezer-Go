@@ -69,7 +69,6 @@ export const DailyStreakCard: React.FC<DailyStreakCardProps> = ({ dailyCheckIn, 
                 <span className="text-slate-100 flex items-center gap-1">
                   <span>Day {targetDayIndex}:</span>
                   <span className="text-cyan-300 font-mono">+{nextReward.elzr} ELZR</span>
-                  <span className="text-slate-400 text-xs font-mono">(+{nextReward.points} PTS)</span>
                 </span>
               )}
             </div>

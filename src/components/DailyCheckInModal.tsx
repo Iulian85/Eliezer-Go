@@ -168,11 +168,6 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
                   +{tier.elzr} ELZR
                 </span>
 
-                {/* Points Reward */}
-                <span className="text-[9px] font-mono text-slate-400">
-                  +{tier.points} PTS
-                </span>
-
                 {/* Completed badge banner */}
                 {isCompleted && (
                   <div className="absolute top-1 right-1 text-[8px] font-bold text-emerald-400">
