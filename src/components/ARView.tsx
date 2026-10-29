@@ -736,7 +736,7 @@ export const ARView: React.FC<ARViewProps> = ({
           onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
           style={{ pointerEvents: 'auto' }}>
           {fixedLocation ? (activeCoin && originRef.current && displayCoords && <GeoCamera
-            key={activeCoin.id} origin={originRef.current} user={displayCoords} orientation={geographicOrientation.current}
+            key={`${activeCoin.id}-${hasOrientation ? 'orientation-ready' : 'orientation-pending'}`} origin={originRef.current} user={displayCoords} orientation={geographicOrientation.current}
             orientationReady={hasOrientation} initialFocus={toWorldPosition(activeCoin, originRef.current, 1.3)} />) : <GyroCamera />}
           <ambientLight intensity={1.5} /><directionalLight position={[5, 10, 5]} intensity={2} />
           {fixedLocation && activeCoin && originRef.current && displayCoords && <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
