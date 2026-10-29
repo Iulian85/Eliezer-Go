@@ -219,7 +219,7 @@ export const DailyCheckInModal: React.FC<DailyCheckInModalProps> = ({
             <div className="flex items-center gap-2">
               <Gift className="w-4 h-4 text-slate-950" />
               <span>
-                CLAIM DAY {targetDayIndex} (+{nextReward.elzr} ELZR & +{nextReward.points} PTS)
+                CLAIM DAY {targetDayIndex}
               </span>
             </div>
           )}
