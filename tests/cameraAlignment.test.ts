@@ -47,3 +47,15 @@ test('fixed coin can be aligned before the first sensor event', () => {
   const projected = coin.clone().project(camera);
   assert.ok(Math.abs(projected.x) < .001 && Math.abs(projected.y) < .001);
 });
+
+test('a late sensor reading can realign the camera toward the fixed coin', () => {
+  const camera = new PerspectiveCamera(75, 393 / 852, .1, 1000);
+  camera.position.set(0, 1.6, 0);
+  const coin = new Vector3(0, 1.3, -5);
+  const sensor = deviceCameraQuaternion(90, 90, 0, 0);
+  const alignment = initialCameraAlignment(camera.position, coin, sensor);
+  camera.quaternion.copy(alignment).multiply(sensor);
+  camera.updateMatrixWorld();
+  const projected = coin.clone().project(camera);
+  assert.ok(Math.abs(projected.x) < .001 && Math.abs(projected.y) < .001);
+});
