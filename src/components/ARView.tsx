@@ -7,6 +7,7 @@ import { Group } from 'three';
 import { Coin3D } from './Coin3D';
 import { localCoinFlight, createCoinFlightPath, CoinFlight } from '../utils/localCoinFlight';
 import { initialFlightRotation } from '../utils/flightView';
+import { selectFlightCameraSource, FlightCameraSource } from '../utils/flightCameraSource';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
@@ -718,7 +719,7 @@ export const ARView: React.FC<ARViewProps> = ({
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
         <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
-          <FixedFlightCamera onReady={setFlightCameraReady} />
+          <FixedFlightCamera fallbackOrientation={orientation} onReady={setFlightCameraReady} />
           <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
           {flightCameraReady && activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
         </Canvas>
@@ -976,20 +977,30 @@ export const ARView: React.FC<ARViewProps> = ({
   );
 };
 
-function FixedFlightCamera({ onReady }: { onReady: (ready: boolean) => void }) {
+function FixedFlightCamera({ fallbackOrientation, onReady }: { fallbackOrientation: Quaternion | null; onReady: (ready: boolean) => void }) {
+  const browserReady = useRef(false);
+  const source = useRef<FlightCameraSource>(null);
+  const [nativeSelected, setNativeSelected] = useState(false);
   useEffect(() => {
     onReady(false);
     const ready = (event: DeviceOrientationEvent) => {
-      if (typeof event.beta === 'number' && typeof event.gamma === 'number') onReady(true);
+      if (typeof event.beta === 'number' && typeof event.gamma === 'number') browserReady.current = true;
     };
     window.addEventListener('deviceorientation', ready);
     return () => window.removeEventListener('deviceorientation', ready);
   }, [onReady]);
   useFrame(({ camera }) => {
+    const next = selectFlightCameraSource(source.current, browserReady.current, Boolean(fallbackOrientation));
+    if (next !== source.current) {
+      source.current = next;
+      setNativeSelected(next === 'native');
+      onReady(next !== null);
+    }
     camera.position.set(0, 0, 0);
+    if (source.current === 'native' && fallbackOrientation) camera.quaternion.copy(fallbackOrientation);
     camera.updateMatrixWorld();
   });
-  return <DeviceOrientationControls makeDefault alphaOffset={0} />;
+  return <DeviceOrientationControls makeDefault alphaOffset={0} enabled={!nativeSelected} />;
 }
 
 function EncounterCoin({ flight, canCollect, isCollecting, onClick }: {
