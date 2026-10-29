@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { Quaternion, Vector3 } from 'three';
-import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial';
+import { deviceCameraQuaternion, VisualPositionFilter, toWorldPosition } from '../utils/arSpatial';
+import { GeoCamera } from './GeoCamera';
+import { coinEncounterReport } from '../utils/coinEncounter';
 import { Canvas } from '@react-three/fiber';
 import { Group } from 'three';
 import { Coin3D } from './Coin3D';
@@ -85,6 +87,7 @@ export const ARView: React.FC<ARViewProps> = ({
 
   const nativeOrientationAt = useRef(0);
   const orientationAt = useRef(0);
+  const geographicOrientation = useRef(new Quaternion());
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
@@ -215,6 +218,7 @@ export const ARView: React.FC<ARViewProps> = ({
   const [sensorYaw, setSensorYaw] = useState(0);
   const yaw = sensorYaw;
   const updateCompass = (quaternion: Quaternion) => {
+    geographicOrientation.current.copy(quaternion);
     setHasOrientation(true);
     const now = performance.now();
     if (now - lastCompassUpdate.current < HUD_UPDATE_MS) return;
@@ -329,8 +333,10 @@ export const ARView: React.FC<ARViewProps> = ({
       setFlight(createCoinFlightPath());
     }
   }, [activeCoin?.id]);
-  const flightState = activeCoin ? flightReports[activeCoin.id] : undefined;
+  const flightState = activeCoin ? coinEncounterReport(activeCoin, flightReports[activeCoin.id]) : undefined;
   const displayedDistance = flightState?.distance ?? realDistance;
+  const fixedLocation = activeCoin?.calibration === true;
+  const canCollectFixed = Boolean(activeCoin && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -618,7 +624,8 @@ export const ARView: React.FC<ARViewProps> = ({
 
     const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
     const report = liveFlightReport.current;
-    if (!report || report.escaped || report.distance > 1 || report.timeLeft <= .35 || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
+    const flightBlocked = !activeCoin.calibration && (!report || report.escaped || report.distance > 1 || report.timeLeft <= .35);
+    if (flightBlocked || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
         playSound.buttonClick();
@@ -722,9 +729,15 @@ export const ARView: React.FC<ARViewProps> = ({
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
         <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
-          <GyroCamera />
+          {fixedLocation ? (originRef.current && visualCoords && <GeoCamera origin={originRef.current} user={visualCoords} orientation={geographicOrientation.current} />) : <GyroCamera />}
           <ambientLight intensity={1.5} /><directionalLight position={[5, 10, 5]} intensity={2} />
-          {activeCoin && <EncounterCoin key={flight.id} flight={flight} isCollecting={isCollecting} savingReward={savingReward} onClick={collectCoin}
+          {fixedLocation && activeCoin && originRef.current && isCoinInARRange && hasOrientation && <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
+            <Suspense fallback={null}>
+              <Coin3D scale={0.40} interactive={canCollectFixed && !isCollecting && !savingReward}
+                onClick={collectCoin} ghost={!canCollectFixed} collected={isCollecting} isMoving={canCollectFixed} />
+            </Suspense>
+          </group>}
+          {!fixedLocation && activeCoin && <EncounterCoin key={flight.id} flight={flight} isCollecting={isCollecting} savingReward={savingReward} onClick={collectCoin}
             onLiveReport={report => { liveFlightReport.current = report; }}
             onReport={report => setFlightReports(previous => ({ ...previous, [activeCoin.id]: report }))} />}
         </Canvas>
@@ -950,7 +963,7 @@ export const ARView: React.FC<ARViewProps> = ({
         onClose={() => setIsRadarOpen(false)}
         userCoords={userCoords}
         coins={displayedCoins.map(coin => {
-          const report = flightReports[coin.id];
+          const report = coinEncounterReport(coin, flightReports[coin.id]);
           return report ? { ...coin, distance: report.distance, bearing: report.bearing, collected: coin.collected || report.escaped } : coin;
         })}
         activeCoinId={activeCoinId}
