@@ -729,11 +729,11 @@ export const ARView: React.FC<ARViewProps> = ({
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
         <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
-          {fixedLocation ? (activeCoin && originRef.current && visualCoords && hasOrientation && <GeoCamera
+          {fixedLocation ? (activeCoin && originRef.current && visualCoords && <GeoCamera
             key={activeCoin.id} origin={originRef.current} user={visualCoords} orientation={geographicOrientation.current}
             initialFocus={toWorldPosition(activeCoin, originRef.current, 1.3)} />) : <GyroCamera />}
           <ambientLight intensity={1.5} /><directionalLight position={[5, 10, 5]} intensity={2} />
-          {fixedLocation && activeCoin && originRef.current && isCoinInARRange && hasOrientation && <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
+          {fixedLocation && activeCoin && originRef.current && isCoinInARRange && <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
             <Suspense fallback={null}>
               <Coin3D scale={0.40} interactive={canCollectFixed && !isCollecting && !savingReward}
                 onClick={collectCoin} ghost={!canCollectFixed} collected={isCollecting} isMoving={canCollectFixed} />

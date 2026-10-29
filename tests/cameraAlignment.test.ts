@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { deviceCameraQuaternion, initialCameraAlignment } from '../src/utils/arSpatial';
 
 test('five-metre calibration coin starts inside the portrait camera for any initial heading or tilt', () => {
@@ -35,4 +35,15 @@ test('calibration stays constant when turning and walking; the coin is not scree
   camera.updateMatrixWorld();
   assert.ok(camera.position.distanceTo(coin) > 10);
   assert.deepEqual(coin, savedPosition);
+});
+
+test('fixed coin can be aligned before the first sensor event', () => {
+  const camera = new PerspectiveCamera(75, 393 / 852, .1, 1000);
+  camera.position.set(0, 1.6, 0);
+  const coin = new Vector3(0, 1.3, -5);
+  const alignment = initialCameraAlignment(camera.position, coin, new Quaternion());
+  camera.quaternion.copy(alignment);
+  camera.updateMatrixWorld();
+  const projected = coin.clone().project(camera);
+  assert.ok(Math.abs(projected.x) < .001 && Math.abs(projected.y) < .001);
 });
