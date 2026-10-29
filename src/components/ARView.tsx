@@ -104,9 +104,10 @@ export const ARView: React.FC<ARViewProps> = ({
   const collectingRef = useRef(false);
   const [hasOrientation, setHasOrientation] = useState(false);
   const lastCompassUpdate = useRef(0);
-  const localFlights = useRef(new Map<string, CoinFlightPath>());
+  const [flight, setFlight] = useState<CoinFlightPath>(() => createCoinFlightPath());
   const [flightReports, setFlightReports] = useState<Record<string, EncounterReport>>({});
-  const [, setFlightTick] = useState(0);
+  const liveFlightReport = useRef<EncounterReport | null>(null);
+  const [savingReward, setSavingReward] = useState(false);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [coinError, setCoinError] = useState<string | null>(null);
   const [gpsTimestamp, setGpsTimestamp] = useState(0);
@@ -318,17 +319,18 @@ export const ARView: React.FC<ARViewProps> = ({
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
   useEffect(() => {
-    if (hasCamera && activeCoin && isCoinInARRange && !localFlights.current.has(activeCoin.id)) {
-      localFlights.current.set(activeCoin.id, createCoinFlightPath());
-      setFlightTick(value => value + 1);
+    if (activeCoin?.id) {
+      liveFlightReport.current = null;
+      setFlightReports(previous => {
+        const next = { ...previous };
+        delete next[activeCoin.id];
+        return next;
+      });
+      setFlight(createCoinFlightPath());
     }
-  }, [activeCoin?.id, isCoinInARRange, hasCamera]);
-  const flight = activeCoin ? localFlights.current.get(activeCoin.id) : undefined;
+  }, [activeCoin?.id]);
   const flightState = activeCoin ? flightReports[activeCoin.id] : undefined;
   const displayedDistance = flightState?.distance ?? realDistance;
-  // Keep authenticated crediting; encounter visibility and interaction follow the source app.
-  const canCollect = Boolean(isCoinInARRange && activeCoin && flightState && !flightState.escaped &&
-    flightState.distance <= 1 && flightState.timeLeft > .35 && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -615,7 +617,8 @@ export const ARView: React.FC<ARViewProps> = ({
     if (collectingRef.current || isCollecting || !activeCoin || activeCoin.collected || Date.now() - gpsTimestamp >= 15000) return;
 
     const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
-    if (!canCollect || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
+    const report = liveFlightReport.current;
+    if (!report || report.escaped || report.distance > 1 || report.timeLeft <= .35 || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
         playSound.buttonClick();
@@ -624,15 +627,18 @@ export const ARView: React.FC<ARViewProps> = ({
     }
 
     collectingRef.current = true;
+    setSavingReward(true);
     let receipt;
     try {
       receipt = await markCoinCollectedInService(activeCoin.id, userCoords!, gpsTimestamp + gameTime() - Date.now());
     } catch (error) {
       setCoinError(error instanceof Error ? error.message : 'Creditarea nu a fost confirmată. Reîncearcă.');
       collectingRef.current = false;
+      setSavingReward(false);
       return;
     }
     setCoinError(null);
+    setSavingReward(false);
     setIsCollecting(true);
     const isRare = activeCoin.type === 'rare' || activeCoin.type === 'merchant';
     if (soundEnabled) {
@@ -683,7 +689,7 @@ export const ARView: React.FC<ARViewProps> = ({
       setIsCollecting(false);
       setSuccessMessage(null);
     }, 1800);
-  }, [isCollecting, activeCoin, canCollect, soundEnabled, onCoinCollected, userCoords, gpsTimestamp]);
+  }, [isCollecting, activeCoin, soundEnabled, onCoinCollected, userCoords, gpsTimestamp]);
 
   return (
     <div
@@ -718,7 +724,8 @@ export const ARView: React.FC<ARViewProps> = ({
         <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
           <GyroCamera />
           <ambientLight intensity={1.5} /><directionalLight position={[5, 10, 5]} intensity={2} />
-          {activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin}
+          {activeCoin && <EncounterCoin key={flight.id} flight={flight} isCollecting={isCollecting} savingReward={savingReward} onClick={collectCoin}
+            onLiveReport={report => { liveFlightReport.current = report; }}
             onReport={report => setFlightReports(previous => ({ ...previous, [activeCoin.id]: report }))} />}
         </Canvas>
       </div>}
@@ -976,35 +983,43 @@ export const ARView: React.FC<ARViewProps> = ({
   );
 };
 
-function EncounterCoin({ flight, canCollect, isCollecting, onClick, onReport }: {
-  flight: CoinFlightPath; canCollect: boolean; isCollecting: boolean; onClick: () => void;
-  onReport: (report: EncounterReport) => void;
+function EncounterCoin({ flight, isCollecting, savingReward, onClick, onReport, onLiveReport }: {
+  flight: CoinFlightPath; isCollecting: boolean; savingReward: boolean; onClick: () => void;
+  onReport: (report: EncounterReport) => void; onLiveReport: (report: EncounterReport) => void;
 }) {
   const coinRef = useRef<Group>(null);
+  const [distanceToCoin, setDistanceToCoin] = useState(99);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [hasEscaped, setHasEscaped] = useState(false);
   const latest = useRef<EncounterReport>({ distance: 99, bearing: 0, timeLeft: 0, escaped: false });
   const reportCallback = useRef(onReport);
   reportCallback.current = onReport;
-  const [display, setDisplay] = useState(latest.current);
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (!coinRef.current || latest.current.timeLeft === 0 && !latest.current.escaped) return;
-      const report = { ...latest.current };
-      setDisplay(report);
-      reportCallback.current(report);
-    }, HUD_UPDATE_MS);
+    const timer = setInterval(() => reportCallback.current({ ...latest.current }), HUD_UPDATE_MS);
     return () => clearInterval(timer);
   }, []);
-  const isNearby = display.distance <= 1;
+  const COIN_VISIBLE_DISTANCE = 9.0;
+  const AR_COLLECT_DISTANCE = 1.0;
+  const isCoinVisible = distanceToCoin <= COIN_VISIBLE_DISTANCE;
+  const isNearby = distanceToCoin <= AR_COLLECT_DISTANCE;
+  const canInteract = !hasEscaped && timeLeft > 0.35 && isNearby;
   return <>
-    <AircoinsCoinMotion coinRef={coinRef} path={flight} onDistanceChange={distance => {
-      latest.current.distance = distance;
-      const point = coinRef.current?.position;
-      if (point) latest.current.bearing = Math.round((Math.atan2(point.x, -point.z) * 180 / Math.PI + 360) % 360);
-    }} onEscape={() => { latest.current.escaped = true; }}
-      onTimeLeftChange={seconds => { latest.current.timeLeft = seconds; }} isPaused={isCollecting} />
-    <group ref={coinRef} position={[0, -9999, 0]}>
-      {!display.escaped && display.distance <= 9 && <Suspense fallback={null}><Coin3D scale={.4} interactive={canCollect && !isCollecting}
-        onClick={onClick} ghost={!canCollect} collected={isCollecting} isMoving={isNearby} /></Suspense>}
-    </group>
+    {!hasEscaped && <>
+      <AircoinsCoinMotion coinRef={coinRef} path={flight} onDistanceChange={distance => {
+        setDistanceToCoin(distance);
+        latest.current.distance = distance;
+        const point = coinRef.current?.position;
+        if (point) latest.current.bearing = Math.round((Math.atan2(point.x, -point.z) * 180 / Math.PI + 360) % 360);
+        onLiveReport({ ...latest.current });
+      }} onEscape={() => { latest.current.escaped = true; setHasEscaped(true); }}
+        onTimeLeftChange={seconds => { latest.current.timeLeft = seconds; setTimeLeft(seconds); }}
+        isPaused={isCollecting || savingReward} />
+      <group ref={coinRef} position={[0, -9999, 0]}>
+        {isCoinVisible && <Suspense fallback={null}>
+          <Coin3D scale={0.40} interactive={canInteract && !isCollecting && !savingReward}
+            onClick={onClick} ghost={!canInteract} collected={isCollecting} isMoving={isNearby} />
+        </Suspense>}
+      </group>
+    </>}
   </>;
 }
