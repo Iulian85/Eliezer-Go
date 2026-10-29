@@ -7,7 +7,7 @@ import { Coin3D } from './Coin3D';
 import { GeoCamera } from './GeoCamera';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { toWorldPosition } from '../utils/arSpatial';
-import { canCollectAt } from '../utils/collection';
+import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
 import { triggerHaptic, hideTelegramBackButton, showTelegramBackButton, getTelegramWebApp } from '../utils/telegram';
@@ -294,7 +294,7 @@ export const ARView: React.FC<ARViewProps> = ({
 
   // Real GPS Distance and Location Checks
   // Show nearby moving coins; their apparent size follows their actual distance.
-  const realDistance = activeCoin && userCoords ? activeCoin.distance : 999999;
+  const realDistance = activeCoin && userCoords ? collectionDistance(userCoords, activeCoin) : 999999;
   const isCoinInARRange = Boolean(
     activeCoin &&
     !activeCoin.collected &&
@@ -305,7 +305,7 @@ export const ARView: React.FC<ARViewProps> = ({
     realDistance <= 150.0
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
-  // Glow and collection use the same unrounded one-metre boundary.
+  // Glow and collection use the same unrounded two-metre boundary.
   const canCollect = Boolean(isCoinInARRange && activeCoin && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
 
@@ -871,7 +871,7 @@ export const ARView: React.FC<ARViewProps> = ({
                       ? 'GPS...'
                       : realDistance >= 1000
                       ? `${(realDistance / 1000).toFixed(1)} km`
-                      : `${Math.round(realDistance)} m`}{' '}
+                      : `${realDistance < 10 ? (Math.ceil(realDistance * 10) / 10).toFixed(1) : Math.ceil(realDistance)} m`}{' '}
                     ({getCompassDirection(targetAzimuth)} {targetAzimuth}°)
                   </span>
                 </div>

@@ -1,4 +1,4 @@
-export const COLLECTION_RADIUS_METERS = 1;
+export const COLLECTION_RADIUS_METERS = 2;
 export interface CollectionPosition { latitude: number; longitude: number; accuracy?: number }
 export function collectionDistance(a: CollectionPosition, b: CollectionPosition) {
   const rad = Math.PI / 180;
