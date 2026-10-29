@@ -4,9 +4,8 @@ import { deviceCameraQuaternion, VisualPositionFilter } from '../utils/arSpatial
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Group } from 'three';
 import { Coin3D } from './Coin3D';
-import { GeoCamera } from './GeoCamera';
+import { localCoinFlight } from '../utils/localCoinFlight';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
-import { toWorldPosition } from '../utils/arSpatial';
 import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
 import { soundManager, playSound } from '../utils/audio';
@@ -103,6 +102,12 @@ export const ARView: React.FC<ARViewProps> = ({
   const positionRef = useRef<GeoCoordinate | null>(null);
   const collectingRef = useRef(false);
   const [orientation, setOrientation] = useState<Quaternion | null>(null);
+  const localFlights = useRef(new Map<string, { startedAt: number; orientation: Quaternion }>());
+  const [, setFlightTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setFlightTick(value => value + 1), 100);
+    return () => clearInterval(timer);
+  }, []);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [coinError, setCoinError] = useState<string | null>(null);
   const [gpsTimestamp, setGpsTimestamp] = useState(0);
@@ -305,8 +310,18 @@ export const ARView: React.FC<ARViewProps> = ({
     realDistance <= 150.0
   );
   const targetAzimuth = activeCoin ? activeCoin.bearing : 0;
+  useEffect(() => {
+    if (activeCoin && isCoinInARRange && orientation && !localFlights.current.has(activeCoin.id)) {
+      localFlights.current.set(activeCoin.id, { startedAt: performance.now(), orientation: orientation.clone() });
+      setFlightTick(value => value + 1);
+    }
+  }, [activeCoin?.id, isCoinInARRange, orientation]);
+  const flight = activeCoin ? localFlights.current.get(activeCoin.id) : undefined;
+  const flightState = flight ? localCoinFlight(flight.startedAt, performance.now()) : null;
+  const displayedDistance = flightState?.distance ?? realDistance;
   // Glow and collection use the same unrounded two-metre boundary.
-  const canCollect = Boolean(isCoinInARRange && activeCoin && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
+  const canCollect = Boolean(isCoinInARRange && activeCoin && flightState && !flightState.escaped &&
+    flightState.distance <= 2 && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
 
   // Robust Native Rear Camera Handler for Telegram Mini App
@@ -597,7 +612,9 @@ export const ARView: React.FC<ARViewProps> = ({
     if (collectingRef.current || isCollecting || !activeCoin || activeCoin.collected || Date.now() - gpsTimestamp >= 15000) return;
 
     const point = activeCoin.motion ? movingCoinPosition(activeCoin.motion, gameTime()) : activeCoin;
-    if (!canCollect || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
+    const encounter = localFlights.current.get(activeCoin.id);
+    const encounterState = encounter ? localCoinFlight(encounter.startedAt, performance.now()) : null;
+    if (!canCollect || !encounterState || encounterState.escaped || encounterState.distance > 2 || !canCollectAt(userCoords, point, gpsTimestamp, Date.now()) || (activeCoin.motion && gameTime() >= activeCoin.motion.endsAt)) {
       triggerHaptic('warning');
       if (soundEnabled) {
         playSound.buttonClick();
@@ -697,10 +714,10 @@ export const ARView: React.FC<ARViewProps> = ({
       />
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
-        <Canvas camera={{ position: [0, 1.6, 0], fov: 65, near: .05, far: 500 }} gl={{ alpha: true, antialias: true }}>
-          {originRef.current && visualCoords && orientation && <GeoCamera origin={originRef.current} user={visualCoords} orientation={orientation} />}
+        <Canvas camera={{ position: [0, 0, 0], fov: 65, near: .05, far: 500 }} gl={{ alpha: true, antialias: true }}>
+          {orientation && <FixedFlightCamera orientation={orientation} />}
           <ambientLight intensity={1.6} /><directionalLight position={[5, 10, 5]} intensity={2.8} />
-          {isCoinInARRange && activeCoin && originRef.current && <RoamingCoin key={activeCoin.id} coin={activeCoin} height={1.4} origin={originRef.current} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
+          {isCoinInARRange && activeCoin && flight && <EncounterCoin key={activeCoin.id} flight={flight} canCollect={canCollect} isCollecting={isCollecting} onClick={collectCoin} />}
         </Canvas>
       </div>}
 
@@ -869,9 +886,10 @@ export const ARView: React.FC<ARViewProps> = ({
                   <span>
                     {!userCoords
                       ? 'GPS...'
-                      : realDistance >= 1000
-                      ? `${(realDistance / 1000).toFixed(1)} km`
-                      : `${realDistance < 10 ? (Math.ceil(realDistance * 10) / 10).toFixed(1) : Math.ceil(realDistance)} m`}{' '}
+                      : flightState?.escaped ? 'Escaped'
+                      : displayedDistance >= 1000
+                      ? `${(displayedDistance / 1000).toFixed(1)} km`
+                      : `${displayedDistance < 10 ? (Math.ceil(displayedDistance * 10) / 10).toFixed(1) : Math.ceil(displayedDistance)} m`}{' '}
                     ({getCompassDirection(targetAzimuth)} {targetAzimuth}°)
                   </span>
                 </div>
@@ -955,16 +973,28 @@ export const ARView: React.FC<ARViewProps> = ({
   );
 };
 
-function RoamingCoin({ coin, origin, height, canCollect, isCollecting, onClick }: {
-  coin: GeoCoin; origin: GeoCoordinate; height: number; canCollect: boolean; isCollecting: boolean; onClick: () => void;
+function FixedFlightCamera({ orientation }: { orientation: Quaternion }) {
+  useFrame(({ camera }) => {
+    camera.position.set(0, 0, 0);
+    camera.quaternion.copy(orientation);
+    camera.updateMatrixWorld();
+  });
+  return null;
+}
+
+function EncounterCoin({ flight, canCollect, isCollecting, onClick }: {
+  flight: { startedAt: number; orientation: Quaternion }; canCollect: boolean; isCollecting: boolean; onClick: () => void;
 }) {
   const group = useRef<Group>(null);
+  const position = useRef(new Vector3());
   useFrame(() => {
     if (!group.current) return;
-    const now = gameTime();
-    const point = coin.motion ? movingCoinPosition(coin.motion, now) : coin;
-    group.current.position.set(...toWorldPosition(point, origin, height));
-    group.current.visible = !coin.motion || now < coin.motion.endsAt;
+    if (isCollecting) return;
+    const state = localCoinFlight(flight.startedAt, performance.now());
+    // Capture the initial viewing frame once; subsequent phone movement cannot change the path.
+    position.current.set(...state.position).applyQuaternion(flight.orientation);
+    group.current.position.copy(position.current);
+    group.current.visible = !state.escaped;
   });
   return <group ref={group}><Coin3D scale={.52} canCollect={canCollect} isCollecting={isCollecting} onClick={onClick} /></group>;
 }
