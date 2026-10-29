@@ -15,9 +15,13 @@ export function GeoCamera({ origin, user, orientation, initialFocus, orientation
   useFrame(({ camera }, delta) => {
     target.current.set(...toWorldPosition(user, origin, 1.6));
     if (!initialized.current) {
-      if (initialFocus && orientationReady) {
-        alignment.current.copy(initialCameraAlignment(target.current, new Vector3(...initialFocus), orientation));
-        alignedToSensor.current = true;
+      if (initialFocus) {
+        alignment.current.copy(initialCameraAlignment(
+          target.current,
+          new Vector3(...initialFocus),
+          orientationReady ? orientation : new Quaternion(),
+        ));
+        alignedToSensor.current = Boolean(orientationReady);
       }
       camera.position.copy(target.current);
       camera.quaternion.copy(alignment.current).multiply(orientation);
