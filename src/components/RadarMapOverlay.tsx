@@ -4,8 +4,10 @@ import { GeoCoin, GeoCoordinate, getCompassDirection, getRemainingDurability, fo
 import { NearbyHunter, HeatmapZone, generateNearbyHunters, generateCityHeatmapZones } from '../utils/nearbyHunters';
 import { triggerHaptic } from '../utils/telegram';
 import { playSound } from '../utils/audio';
+import { formatCoinDistance } from '../utils/encounterDisplay';
 
 interface RadarMapOverlayProps {
+  encounterMode?: boolean;
   isOpen: boolean;
   onClose: () => void;
   userCoords: GeoCoordinate;
@@ -16,6 +18,7 @@ interface RadarMapOverlayProps {
 }
 
 export const RadarMapOverlay: React.FC<RadarMapOverlayProps> = ({
+  encounterMode = false,
   isOpen,
   onClose,
   userCoords,
@@ -84,7 +87,7 @@ export const RadarMapOverlay: React.FC<RadarMapOverlayProps> = ({
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
               <h2 className="text-base font-bold text-white font-mono tracking-wider uppercase">
-                GPS RADAR & HEATMAP
+                {encounterMode ? 'AR RADAR & HEATMAP' : 'GPS RADAR & HEATMAP'}
               </h2>
             </div>
             <div className="text-[11px] font-mono text-cyan-400/80 mt-0.5">
@@ -241,7 +244,7 @@ export const RadarMapOverlay: React.FC<RadarMapOverlayProps> = ({
                   <button
                     key={coin.id}
                     onClick={() => handleCoinClick(coin)}
-                    title={`${coin.name} (${coin.distance}m)`}
+                    title={`${coin.name} (${formatCoinDistance(coin.distance)})`}
                     className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 transition-all hover:scale-125 cursor-pointer"
                     style={{
                       transform: `translate(calc(-50% + ${blipX}px), calc(-50% + ${blipY}px))`,
@@ -414,7 +417,7 @@ export const RadarMapOverlay: React.FC<RadarMapOverlayProps> = ({
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-sm font-extrabold font-mono text-cyan-300">
-                          {coin.distance}m
+                          {formatCoinDistance(coin.distance)}
                         </div>
                       </div>
                     </div>

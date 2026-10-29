@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { Group } from 'three';
 import { Coin3D } from './Coin3D';
 import { GyroCamera, createCoinFlightPath, AircoinsCoinMotion, CoinFlightPath } from './OriginalCoinFlight';
+import { EncounterReport, formatCoinDistance, HUD_UPDATE_MS } from '../utils/encounterDisplay';
 import { movingCoinPosition, gameTime } from '../utils/coinMotion';
 import { canCollectAt, collectionDistance } from '../utils/collection';
 import { subscribeTelegramOrientation } from '../utils/telegramOrientation';
@@ -101,9 +102,10 @@ export const ARView: React.FC<ARViewProps> = ({
   const [visualCoords, setVisualCoords] = useState<GeoCoordinate | null>(null);
   const positionRef = useRef<GeoCoordinate | null>(null);
   const collectingRef = useRef(false);
-  const [orientation, setOrientation] = useState<Quaternion | null>(null);
+  const [hasOrientation, setHasOrientation] = useState(false);
+  const lastCompassUpdate = useRef(0);
   const localFlights = useRef(new Map<string, CoinFlightPath>());
-  const [flightReports, setFlightReports] = useState<Record<string, { distance: number; timeLeft: number; escaped: boolean }>>({});
+  const [flightReports, setFlightReports] = useState<Record<string, EncounterReport>>({});
   const [, setFlightTick] = useState(0);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [coinError, setCoinError] = useState<string | null>(null);
@@ -211,6 +213,14 @@ export const ARView: React.FC<ARViewProps> = ({
   const [activeCoinId, setActiveCoinId] = useState('');
   const [sensorYaw, setSensorYaw] = useState(0);
   const yaw = sensorYaw;
+  const updateCompass = (quaternion: Quaternion) => {
+    setHasOrientation(true);
+    const now = performance.now();
+    if (now - lastCompassUpdate.current < HUD_UPDATE_MS) return;
+    lastCompassUpdate.current = now;
+    const forward = new Vector3(0, 0, -1).applyQuaternion(quaternion);
+    setSensorYaw(Math.round((Math.atan2(forward.x, -forward.z) * 180 / Math.PI + 360) % 360) % 360);
+  };
 
   // Authoritative live coins from the API
   useEffect(() => {
@@ -465,18 +475,14 @@ export const ARView: React.FC<ARViewProps> = ({
       const angle = window.screen.orientation?.angle ?? (window as Window & { orientation?: number }).orientation ?? 0;
       const quaternion = deviceCameraQuaternion(alpha, e.beta, e.gamma, angle);
       orientationAt.current = Date.now();
-      setOrientation(quaternion);
+      updateCompass(quaternion);
       setTrackingError(previous => previous?.startsWith('GPS:') ? previous : null);
-      const forward = new Vector3(0, 0, -1).applyQuaternion(quaternion);
-      setSensorYaw((Math.atan2(forward.x, -forward.z) * 180 / Math.PI + 360) % 360);
     };
     const cleanupNative = subscribeTelegramOrientation(quaternion => {
       nativeOrientationAt.current = performance.now();
       orientationAt.current = Date.now();
-      setOrientation(quaternion);
+      updateCompass(quaternion);
       setTrackingError(previous => previous?.startsWith('GPS:') ? previous : null);
-      const forward = new Vector3(0, 0, -1).applyQuaternion(quaternion);
-      setSensorYaw((Math.atan2(forward.x, -forward.z) * 180 / Math.PI + 360) % 360);
     });
     window.addEventListener('deviceorientation', handleOrientation);
     window.addEventListener('deviceorientationabsolute', handleOrientation as EventListener);
@@ -805,7 +811,7 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
 
         <div className="px-4 text-center text-xs text-white pointer-events-auto">
-          {!orientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
+          {!hasOrientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}
           {!coinError && geoCoins.length === 0 && <p>No active coins available.</p>}
         </div>
@@ -877,14 +883,12 @@ export const ARView: React.FC<ARViewProps> = ({
               </button>
 
               {activeCoin && (
-                <div className="px-2.5 py-1.5 rounded-full bg-cyan-950/85 backdrop-blur border border-cyan-500/40 text-xs font-mono text-cyan-300 flex items-center gap-1.5 shadow-md">
+                <div className="px-2.5 py-1.5 min-w-[90px] tabular-nums rounded-full bg-cyan-950/85 backdrop-blur border border-cyan-500/40 text-xs font-mono text-cyan-300 flex items-center justify-center gap-1.5 shadow-md">
                   <Navigation className="w-3.5 h-3.5 text-cyan-400" />
                   <span>
                     {!userCoords
                       ? 'GPS...'
-                      : displayedDistance >= 1000
-                      ? `${(displayedDistance / 1000).toFixed(1)} km`
-                      : `${displayedDistance < 10 ? (Math.ceil(displayedDistance * 10) / 10).toFixed(1) : Math.ceil(displayedDistance)} m`}
+                      : formatCoinDistance(displayedDistance)}
                   </span>
                 </div>
               )}
@@ -933,10 +937,14 @@ export const ARView: React.FC<ARViewProps> = ({
 
       {/* MODALS */}
       {userCoords && <RadarMapOverlay
+        encounterMode={Boolean(flightState)}
         isOpen={isRadarOpen}
         onClose={() => setIsRadarOpen(false)}
         userCoords={userCoords}
-        coins={displayedCoins}
+        coins={displayedCoins.map(coin => {
+          const report = flightReports[coin.id];
+          return report ? { ...coin, distance: report.distance, bearing: report.bearing, collected: coin.collected || report.escaped } : coin;
+        })}
         activeCoinId={activeCoinId}
         onSelectCoin={(coinId) => {
           setActiveCoinId(coinId);
@@ -969,19 +977,32 @@ export const ARView: React.FC<ARViewProps> = ({
 
 function EncounterCoin({ flight, canCollect, isCollecting, onClick, onReport }: {
   flight: CoinFlightPath; canCollect: boolean; isCollecting: boolean; onClick: () => void;
-  onReport: (report: { distance: number; timeLeft: number; escaped: boolean }) => void;
+  onReport: (report: EncounterReport) => void;
 }) {
   const coinRef = useRef<Group>(null);
-  const [distance, setDistance] = useState(99);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [escaped, setEscaped] = useState(false);
-  useEffect(() => { onReport({ distance, timeLeft, escaped }); }, [distance, timeLeft, escaped]);
-  const isNearby = distance <= 1;
+  const latest = useRef<EncounterReport>({ distance: 99, bearing: 0, timeLeft: 0, escaped: false });
+  const reportCallback = useRef(onReport);
+  reportCallback.current = onReport;
+  const [display, setDisplay] = useState(latest.current);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!coinRef.current || latest.current.timeLeft === 0 && !latest.current.escaped) return;
+      const report = { ...latest.current };
+      setDisplay(report);
+      reportCallback.current(report);
+    }, HUD_UPDATE_MS);
+    return () => clearInterval(timer);
+  }, []);
+  const isNearby = display.distance <= 1;
   return <>
-    <AircoinsCoinMotion coinRef={coinRef} path={flight} onDistanceChange={setDistance}
-      onEscape={() => setEscaped(true)} onTimeLeftChange={setTimeLeft} isPaused={isCollecting} />
+    <AircoinsCoinMotion coinRef={coinRef} path={flight} onDistanceChange={distance => {
+      latest.current.distance = distance;
+      const point = coinRef.current?.position;
+      if (point) latest.current.bearing = Math.round((Math.atan2(point.x, -point.z) * 180 / Math.PI + 360) % 360);
+    }} onEscape={() => { latest.current.escaped = true; }}
+      onTimeLeftChange={seconds => { latest.current.timeLeft = seconds; }} isPaused={isCollecting} />
     <group ref={coinRef} position={[0, -9999, 0]}>
-      {!escaped && distance <= 9 && <Suspense fallback={null}><Coin3D scale={.4} interactive={canCollect && !isCollecting}
+      {!display.escaped && display.distance <= 9 && <Suspense fallback={null}><Coin3D scale={.4} interactive={canCollect && !isCollecting}
         onClick={onClick} ghost={!canCollect} collected={isCollecting} isMoving={isNearby} /></Suspense>}
     </group>
   </>;
