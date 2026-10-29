@@ -731,7 +731,10 @@ export const ARView: React.FC<ARViewProps> = ({
       />
 
       {hasCamera && <div style={{ position: 'fixed', inset: 0, zIndex: 2 }}>
-        <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }} gl={{ alpha: true, antialias: true }}>
+        <Canvas camera={{ position: [0, 0, 0], fov: 75, near: .1, far: 1000 }}
+          gl={{ alpha: true, antialias: true }}
+          onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+          style={{ pointerEvents: 'auto' }}>
           {fixedLocation ? (activeCoin && originRef.current && displayCoords && <GeoCamera
             key={activeCoin.id} origin={originRef.current} user={displayCoords} orientation={geographicOrientation.current}
             orientationReady={hasOrientation} initialFocus={toWorldPosition(activeCoin, originRef.current, 1.3)} />) : <GyroCamera />}
