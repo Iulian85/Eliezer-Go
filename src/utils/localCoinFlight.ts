@@ -5,17 +5,17 @@ export interface CoinFlightPath {
   durationSeconds: number;
 }
 
-// Flight algorithm from Eliezer-Hunt/views/ARView.tsx.
+// DriftingCoin movement from the earlier deployed Eliezer-Hunt version.
 export function createCoinFlightPath(random = Math.random): CoinFlightPath {
+  const start: [number, number, number] = [(random() - .5) * 5, 1.3, -7];
   const angle = random() * Math.PI * 2;
-  const traverseDistance = 40;
-  const passOffsetX = (random() - .5) * .6;
-  const passY = 1.3 + random() * .4;
-  const passOffsetZ = (random() - .5) * .6;
-  const dx = Math.cos(angle), dz = Math.sin(angle);
-  const start: [number, number, number] = [passOffsetX - dx * traverseDistance, passY, passOffsetZ - dz * traverseDistance];
-  const end: [number, number, number] = [passOffsetX + dx * traverseDistance, passY + (random() - .5) * .4, passOffsetZ + dz * traverseDistance];
-  return { id: Date.now() + Math.floor(random() * 100000), start, end, durationSeconds: 20 + random() * 8 };
+  const speed = .6 + random() * .5;
+  const vx = Math.cos(angle) * speed, vz = Math.sin(angle) * speed;
+  const projection = start[0] * vx + start[2] * vz;
+  const radiusSquared = start[0] ** 2 + start[2] ** 2 + (start[1] - VIEWER_HEIGHT) ** 2;
+  const durationSeconds = (-projection + Math.sqrt(projection ** 2 + speed ** 2 * (81 - radiusSquared))) / speed ** 2;
+  const end: [number, number, number] = [start[0] + vx * durationSeconds, start[1], start[2] + vz * durationSeconds];
+  return { id: Date.now() + Math.floor(random() * 100000), start, end, durationSeconds };
 }
 
 export interface CoinFlight { startedAt: number; path: CoinFlightPath }
@@ -28,6 +28,6 @@ export function localCoinFlight(flight: CoinFlight, now: number, animationSecond
   const elapsed = Math.max(0, now - flight.startedAt) / 1000;
   const progress = Math.min(elapsed / flight.path.durationSeconds, 1);
   const position = flight.path.start.map((value, axis) => value + (flight.path.end[axis] - value) * progress) as [number, number, number];
-  position[1] += Math.sin(animationSeconds * 1.2) * .02 - VIEWER_HEIGHT;
+  position[1] += Math.sin(animationSeconds * 2.5) * .15 - VIEWER_HEIGHT;
   return { position, distance: Math.hypot(...position), escaped: progress >= 1 };
 }

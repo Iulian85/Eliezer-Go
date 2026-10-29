@@ -70,8 +70,8 @@ export const Coin3D: React.FC<Coin3DProps> = ({
 
     // Original Eliezer-Hunt coin animation.
     if (!isCollecting) {
-      groupRef.current.rotation.y += .012;
-      groupRef.current.rotation.x = canCollect ? Math.sin(state.clock.elapsedTime * 2.5) * .15 : 0;
+      groupRef.current.rotation.y += .05;
+      groupRef.current.rotation.x = canCollect ? Math.sin(state.clock.elapsedTime * 3) * .2 : 0;
     }
 
     // Smooth pulse for collection golden glow and light beam when player is close

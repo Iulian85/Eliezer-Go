@@ -890,11 +890,9 @@ export const ARView: React.FC<ARViewProps> = ({
                   <span>
                     {!userCoords
                       ? 'GPS...'
-                      : flightState?.escaped ? 'Moneda a trecut'
                       : displayedDistance >= 1000
                       ? `${(displayedDistance / 1000).toFixed(1)} km`
-                      : `${displayedDistance < 10 ? (Math.ceil(displayedDistance * 10) / 10).toFixed(1) : Math.ceil(displayedDistance)} m`}{' '}
-                    ({getCompassDirection(targetAzimuth)} {targetAzimuth}°)
+                      : `${displayedDistance < 10 ? (Math.ceil(displayedDistance * 10) / 10).toFixed(1) : Math.ceil(displayedDistance)} m`}
                   </span>
                 </div>
               )}
