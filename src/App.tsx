@@ -23,12 +23,7 @@ import { BiometricAuthGate } from './components/BiometricAuthGate';
 import { soundManager, playSound } from './utils/audio';
 import { checkAchievements } from './utils/achievements';
 import confetti from 'canvas-confetti';
-import { Volume2, VolumeX, Trophy, Maximize, Minimize, ShieldAlert, Megaphone } from 'lucide-react';
-import {
-  isFullscreen as checkFullscreen,
-  toggleFullscreen,
-  subscribeFullscreenChange,
-} from './utils/fullscreen';
+import { Volume2, VolumeX, Trophy, ShieldAlert, Megaphone } from 'lucide-react';
 import { syncHunterToService, fetchAccountBalance } from './lib/api';
 import { getIsAdminModeVisible, isWalletAdminAuthorized } from './utils/adminAuth';
 import { useTonAddress } from '@tonconnect/ui-react';
@@ -44,7 +39,6 @@ export default function App() {
   const [telegramUser, setTelegramUser] = useState<{ id: number; first_name?: string; username?: string } | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(() => soundManager.isMuted());
   const [achievementToast, setAchievementToast] = useState<AchievementDefinition | null>(null);
-  const [isFs, setIsFs] = useState<boolean>(() => checkFullscreen());
 
   useEffect(() => {
     if (!telegramUser?.id || isARActive) return;
@@ -103,12 +97,6 @@ export default function App() {
     ''
   );
 
-  useEffect(() => {
-    const unsub = subscribeFullscreenChange((active) => {
-      setIsFs(active);
-    });
-    return () => unsub();
-  }, []);
 
   // Energy & Booster state
   const [energy, setEnergy] = useState<number>(100);
@@ -392,27 +380,6 @@ export default function App() {
               <span className="font-bold hidden xs:inline">ADMIN</span>
             </button>
           )}
-          <button
-            onClick={async () => {
-              triggerHaptic('light');
-              const next = await toggleFullscreen();
-              setIsFs(next);
-            }}
-            title={isFs ? 'Exit Fullscreen' : 'Fullscreen Experience'}
-            className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white transition-all cursor-pointer active:scale-95"
-          >
-            {isFs ? (
-              <>
-                <Minimize className="w-3 h-3 text-amber-400" />
-                <span className="text-amber-400 font-bold hidden xs:inline">EXIT FS</span>
-              </>
-            ) : (
-              <>
-                <Maximize className="w-3 h-3 text-cyan-400" />
-                <span className="text-cyan-400 font-bold hidden xs:inline">FULLSCREEN</span>
-              </>
-            )}
-          </button>
           <button
             onClick={() => {
               triggerHaptic('light');
