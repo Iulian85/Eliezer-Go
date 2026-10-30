@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react
 import { Quaternion, Vector3 } from 'three';
 import { deviceCameraQuaternion, VisualPositionFilter, toWorldPosition } from '../utils/arSpatial';
 import { GeoCamera } from './GeoCamera';
+import { WebARWorldTracking } from './WebARWorldTracking';
 import { coinEncounterReport } from '../utils/coinEncounter';
 import { Canvas } from '@react-three/fiber';
 import { Group } from 'three';
@@ -106,6 +107,7 @@ export const ARView: React.FC<ARViewProps> = ({
   const positionRef = useRef<GeoCoordinate | null>(null);
   const collectingRef = useRef(false);
   const [hasOrientation, setHasOrientation] = useState(false);
+  const [webxrActive, setWebxrActive] = useState(false);
   const lastCompassUpdate = useRef(0);
   const [flight, setFlight] = useState<CoinFlightPath>(() => createCoinFlightPath());
   const [flightReports, setFlightReports] = useState<Record<string, EncounterReport>>({});
@@ -335,7 +337,9 @@ export const ARView: React.FC<ARViewProps> = ({
   }, [activeCoin?.id]);
   const flightState = activeCoin ? coinEncounterReport(activeCoin, flightReports[activeCoin.id]) : undefined;
   const displayedDistance = flightState?.distance ?? realDistance;
-  const fixedLocation = activeCoin?.calibration === true;
+  const fixedLocation = activeCoin?.calibration === true || activeCoin?.id === 'feldstrasse-17-gersthofen-20261028';
+  const handleWebXRActive = useCallback(() => setWebxrActive(true), []);
+  const handleWebXRUnavailable = useCallback(() => setWebxrActive(false), []);
   const displayCoords = visualCoords ?? userCoords;
   const canCollectFixed = Boolean(activeCoin && canCollectAt(userCoords, activeCoin, gpsTimestamp, Date.now()));
 
@@ -726,6 +730,7 @@ export const ARView: React.FC<ARViewProps> = ({
           height: '100vh',
           objectFit: 'cover',
           zIndex: 1,
+          opacity: webxrActive ? 0 : 1,
         }}
         className="opacity-100"
       />
@@ -735,17 +740,24 @@ export const ARView: React.FC<ARViewProps> = ({
           gl={{ alpha: true, antialias: true }}
           onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
           style={{ pointerEvents: 'auto' }}>
-          {fixedLocation ? (activeCoin && originRef.current && displayCoords && <GeoCamera
+          <WebARWorldTracking enabled onActive={handleWebXRActive} onUnavailable={handleWebXRUnavailable} />
+          {!webxrActive && (fixedLocation ? (activeCoin && originRef.current && displayCoords && <GeoCamera
             key={`${activeCoin.id}-${hasOrientation ? 'orientation-ready' : 'orientation-pending'}`} origin={originRef.current} user={displayCoords} orientation={geographicOrientation.current}
-            orientationReady={hasOrientation} initialFocus={toWorldPosition(activeCoin, originRef.current, 1.3)} />) : <GyroCamera />}
+            orientationReady={hasOrientation} initialFocus={toWorldPosition(activeCoin, originRef.current, 1.3)} />) : <GyroCamera />)}
           <ambientLight intensity={1.5} /><directionalLight position={[5, 10, 5]} intensity={2} />
-          {fixedLocation && activeCoin && originRef.current && displayCoords && <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
+          {webxrActive && activeCoin && <group position={[0, 1.45, -2.5]}>
+            <Suspense fallback={null}>
+              <Coin3D scale={0.40} interactive={canCollectFixed && !isCollecting && !savingReward}
+                onClick={collectCoin} ghost={!canCollectFixed} collected={isCollecting} isMoving={false} />
+            </Suspense>
+          </group>}
+          {!webxrActive && fixedLocation && activeCoin && originRef.current && displayCoords && <group position={toWorldPosition(activeCoin, originRef.current, 1.3)}>
             <Suspense fallback={null}>
               <Coin3D scale={0.40} interactive={canCollectFixed && !isCollecting && !savingReward}
                 onClick={collectCoin} ghost={!canCollectFixed} collected={isCollecting} isMoving={canCollectFixed} />
             </Suspense>
           </group>}
-          {!fixedLocation && activeCoin && <EncounterCoin key={flight.id} flight={flight} isCollecting={isCollecting} savingReward={savingReward} onClick={collectCoin}
+          {!webxrActive && !fixedLocation && activeCoin && <EncounterCoin key={flight.id} flight={flight} isCollecting={isCollecting} savingReward={savingReward} onClick={collectCoin}
             onLiveReport={report => { liveFlightReport.current = report; }}
             onReport={report => setFlightReports(previous => ({ ...previous, [activeCoin.id]: report }))} />}
         </Canvas>
@@ -839,7 +851,6 @@ export const ARView: React.FC<ARViewProps> = ({
         </div>
 
         <div className="px-4 text-center text-xs text-white pointer-events-auto">
-          {!hasOrientation && <button onClick={requestSensorPermission} className="bg-slate-900 p-3 rounded-xl">Enable compass / motion sensors</button>}
           {(trackingError || coinError || cameraError) && <p role="alert" className="bg-slate-900 p-2 rounded-xl">{trackingError || coinError || cameraError}</p>}
           {!coinError && geoCoins.length === 0 && <p>No active coins available.</p>}
         </div>
