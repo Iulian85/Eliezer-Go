@@ -7,6 +7,7 @@ import { GeoCoin, GeoCoordinate, getDistanceMeters, getBearingDegrees } from '..
 import { fetchCoinDropsFromService } from '../lib/api';
 import { generateNearbyHunters, generateCityHeatmapZones } from '../utils/nearbyHunters';
 import { enterFullscreen } from '../utils/fullscreen';
+import { requestWebXRSessionOnGesture } from '../utils/webxrSession';
 
 interface HuntTabProps {
   onStartHunting: (prewarmedStream?: MediaStream) => boolean;
@@ -64,6 +65,8 @@ export const HuntTab: React.FC<HuntTabProps> = ({
     }
     triggerHaptic('heavy');
     playSound.radarPing();
+    // WebXR immersive sessions must be requested during this user gesture.
+    requestWebXRSessionOnGesture();
 
     // Trigger Fullscreen on user tap gesture for full immersion
     enterFullscreen().catch(() => {});

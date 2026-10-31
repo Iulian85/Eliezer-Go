@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
+import { consumeWebXRSession } from '../utils/webxrSession';
 
 type XRSessionWithEvents = XRSession & {
   addEventListener: (type: string, listener: EventListener) => void;
@@ -26,24 +27,22 @@ export function WebARWorldTracking({ enabled, onActive, onUnavailable }: WebARWo
     let session: XRSessionWithEvents | null = null;
 
     async function start() {
-      const xr = navigator.xr;
-      if (!enabled || !xr || typeof xr.isSessionSupported !== 'function') {
+      if (!enabled) {
         onUnavailable();
         return;
       }
 
       try {
-        const supported = await xr.isSessionSupported('immersive-ar');
-        if (!supported || disposed) {
+        const pending = consumeWebXRSession();
+        if (!pending) {
           onUnavailable();
           return;
         }
-
-        session = await xr.requestSession('immersive-ar', {
-          requiredFeatures: ['local-floor'],
-          optionalFeatures: ['hit-test', 'anchors', 'dom-overlay'],
-          domOverlay: { root: document.body },
-        });
+        session = await pending as XRSessionWithEvents | null;
+        if (!session || disposed) {
+          onUnavailable();
+          return;
+        }
         if (disposed) {
           await session.end();
           return;
