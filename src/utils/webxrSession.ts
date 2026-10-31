@@ -3,14 +3,13 @@ let pendingSession: Promise<XRSession | null> | null = null;
 /** Must be called from the existing Hunt button gesture. WebXR requires user activation. */
 export function requestWebXRSessionOnGesture(): void {
   if (!navigator.xr || pendingSession) return;
-  pendingSession = navigator.xr.isSessionSupported('immersive-ar')
-    .then((supported) => supported
-      ? navigator.xr!.requestSession('immersive-ar', {
-        requiredFeatures: ['local-floor'],
-        optionalFeatures: ['hit-test', 'anchors', 'dom-overlay'],
-        domOverlay: { root: document.body },
-      })
-      : null)
+  // requestSession itself must run in the original click/tap activation.
+  // Awaiting isSessionSupported first can lose that activation on Android.
+  pendingSession = navigator.xr.requestSession('immersive-ar', {
+    requiredFeatures: ['local-floor'],
+    optionalFeatures: ['hit-test', 'anchors', 'dom-overlay'],
+    domOverlay: { root: document.body },
+  })
     .catch(() => null);
 }
 
